@@ -15,7 +15,7 @@ from funasr.utils.postprocess_utils import rich_transcription_postprocess
 # VAD模型路径
 vad_model_dir = "fsmn-vad"
 
-# ASR模型路径
+# ASR模型路径 Whisper默认使用
 asr_models = {"SenseVoice": "iic/SenseVoiceSmall", "Whisper": "iic/Whisper-large-v3-turbo"}
 
 # 语言选项
@@ -140,6 +140,7 @@ def model_inference(input_wav, model_name, language, silence_threshold):
 
     srt_result = ""
     txt_result = []
+    data = []
     srt_id = 1
 
     for segment in segments:
@@ -194,27 +195,30 @@ def model_inference(input_wav, model_name, language, silence_threshold):
             + "\n\n"
         )
         txt_result.append(cleaned_text)
+        data.append([str(srt_id), reformat_time(start_time / 1000), reformat_time(end_time / 1000), cleaned_text])
         srt_id += 1
 
     write_srt(srt_result, srt_file)
     write_txt(txt_result, txt_file)
-    gr.Info(f"音频{Path(input_wav).name}转录完成。")
-    return srt_result
+    gr.Info("{filename}Transcription Completed.").format(filename=Path(input_wav).name)
+    return data
 
 
 # 字幕文件保存到选定文件夹
 def save_file(audio_inputs, path_input_text):
     if not Path(path_input_text).is_dir() or path_input_text.strip() == "":
-        gr.Warning("请输入有效路径！")
+        gr.Warning("Please enter a valid target folder")
     else:
         try:
             srt_file = Path(audio_inputs).with_suffix(".srt")
             txt_file = Path(audio_inputs).with_suffix(".txt")
             shutil.copy2(srt_file, path_input_text)
             shutil.copy2(txt_file, path_input_text)
-            gr.Info(f"转录结果：{srt_file.name}和{txt_file.name}已保存到指定目录。")
+            gr.Info(
+                "Transcription Results：{srt} and {txt}The file has been saved to the specified directory.。"
+            ).format(srt=srt_file.name, txt=txt_file.name)
         except Exception as e:
-            gr.Warning(f"保存文件时出错: {e}")
+            gr.Warning("An error occurred while saving the file: {error}").format(error=e)
 
 
 # 多文件转录
@@ -223,7 +227,7 @@ def multi_file_asr(multi_files_upload, model_name, language, silence_threshold):
     for audio_inputs in multi_files_upload:
         model_inference(audio_inputs, model_name, language, silence_threshold)
         num += 1
-    gr.Info(f"总共转录{num}个音频，已全部完成")
+    gr.Info("Total Transcriptions Completed {num} audio files").format(num=num)
 
 
 # 字幕文件保存到选定文件夹
@@ -235,62 +239,72 @@ def save_multi_srt(multi_files_upload, path_input_text):
 html_content = """
 <div>
     <h2 style="font-size: 22px;margin-left: 0px;">SenseVoice & Whisper</h2>
-    <p style="font-size: 18px;margin-left: 20px;">SenseVoice-Small 和 Whisper 语音基础模型，用于快速语音理解</p>
-    <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">SenseVoice阿里官方GitHub</a>
+    <p style="font-size: 18px;margin-left: 20px;">SenseVoice-Small 和 Whisper 语音识别，用于快速语音理解</p>
+    <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">SenseVoice阿里官方(GitHub)</a>
     <a href="https://github.com/jianchang512/sense-api" target="_blank">Sense-Api仓库</a>
-    <a href="https://github.com/jianchang512/pyvideotrans" target="_blank">pyVideoTrans仓库</a></p>
 </div>
 """
 
 
 def update_language_options(model_name):
-    return gr.Dropdown(choices=language_options[model_name], value="auto", label="说话语言")
+    return gr.Dropdown(choices=language_options[model_name], value="auto", label="Spoken language")
 
 
 def launch():
-    with gr.Blocks(theme=gr.themes.Soft(), title="SenseVoice & Whisper 在线web界面") as demo:
+    with gr.Blocks(theme=gr.themes.Soft(), title="SenseVoice & Whisper WebUI") as demo:
         gr.HTML(html_content)
 
-        model_selector = gr.Radio(choices=["SenseVoice", "Whisper"], value="SenseVoice", label="选择ASR模型")
-
-        with gr.Tab(label="单文件转录"), gr.Column():
-            audio_inputs = gr.Audio(label="上传音频或录制麦克风", type="filepath")
-            with gr.Accordion("配置"), gr.Row():
-                language_inputs = gr.Dropdown(choices=language_options["SenseVoice"], value="auto", label="说话语言")
+        with gr.Row():
+            model_selector = gr.Radio(
+                choices=["SenseVoice", "Whisper"], value="SenseVoice", label="Select an ASR model"
+            )
+        with gr.Tab(label="Single-file transcription"), gr.Column():
+            audio_inputs = gr.Audio(label="Upload audio or record microphone", type="filepath")
+            with gr.Accordion("Configuration"), gr.Row():
+                language_inputs = gr.Dropdown(
+                    choices=language_options["SenseVoice"], value="auto", label="Spoken language"
+                )
                 end_silence_time = gr.Slider(
-                    label="静音阈值", minimum=0, maximum=6000, step=50, value=800, interactive=True
+                    label="Silence threshold", minimum=0, maximum=6000, step=50, value=800, interactive=True
                 )
             with gr.Row():
-                stre_btn = gr.Button("开始转录", variant="primary")
-                save_btn = gr.Button("保存字幕", variant="primary")
-            path_input_text = gr.Text(label="保存路径", interactive=True, placeholder="请输入正确的目标文件夹")
-            text_outputs = gr.Textbox(label="识别结果", lines=20)
+                stre_btn = gr.Button(("Start Transcription"), variant="primary")
+                save_btn = gr.Button(("Save Subtitles"), variant="primary")
+            path_input_text = gr.Text(
+                label="Save Path", interactive=True, placeholder="Please enter a valid target folder"
+            )
+            output_table = gr.Dataframe(
+                headers=["No.", "Start time", "End time", "Subtitle Content"],
+                label="Transcription Results",
+            )
 
         model_selector.change(update_language_options, inputs=model_selector, outputs=language_inputs)
 
         stre_btn.click(
             model_inference,
             inputs=[audio_inputs, model_selector, language_inputs, end_silence_time],
-            outputs=text_outputs,
+            outputs=output_table,
         )
 
         save_btn.click(save_file, inputs=[audio_inputs, path_input_text], outputs=[])
 
-        with gr.Tab(label="多文件转录"), gr.Column():
+        with gr.Tab(label=("Multi-file transcription")), gr.Column():
             multi_files_upload = gr.File(
-                label="上传音频", file_count="directory", file_types=[".mp3", ".wav", ".flac", ".m4a", ".ogg"]
+                label="Upload audio", file_count="directory", file_types=[".mp3", ".wav", ".flac", ".m4a", ".ogg"]
             )
-            with gr.Accordion("配置"), gr.Row():
+            with gr.Accordion("Configuration"), gr.Row():
                 language_inputs_multi = gr.Dropdown(
-                    choices=language_options["SenseVoice"], value="auto", label="说话语言"
+                    choices=language_options["SenseVoice"], value="auto", label="Spoken language"
                 )
                 end_silence_time_multi = gr.Slider(
-                    label="静音阈值", minimum=0, maximum=6000, step=50, value=800, interactive=True
+                    label="Silence threshold", minimum=0, maximum=6000, step=50, value=800, interactive=True
                 )
             with gr.Row():
-                stre_btn_multi = gr.Button("开始转录", variant="primary")
-                save_btn_multi = gr.Button("保存字幕", variant="primary")
-            path_input_text_multi = gr.Text(label="保存路径", interactive=True, placeholder="请输入正确的目标文件夹")
+                stre_btn_multi = gr.Button(("Start Transcription"), variant="primary")
+                save_btn_multi = gr.Button(("Save Subtitles"), variant="primary")
+            path_input_text_multi = gr.Text(
+                label="Save Path", interactive=True, placeholder="Please enter a valid target folder"
+            )
 
         model_selector.change(update_language_options, inputs=model_selector, outputs=language_inputs_multi)
 
@@ -303,7 +317,7 @@ def launch():
         save_btn_multi.click(save_multi_srt, inputs=[multi_files_upload, path_input_text_multi], outputs=[])
 
     threading.Thread(target=open_page).start()
-    demo.launch(css=".gradio-textbox {font-family: 微软雅黑}")
+    demo.launch()
 
 
 if __name__ == "__main__":
