@@ -1,1 +1,30 @@
-
+{
+    "title": "SenseVoice & Whisper",
+    "description": "SenseVoice-Small and Whisper speech recognition for fast speech understanding",
+    "select_model": "Select an ASR model",
+    "configuration": "Configuration",
+    "spoken_language": "Spoken language",
+    "silence_threshold": "Silence threshold",
+    "single_file_transcription": "Single-file transcription",
+    "upload_audio": "Upload audio or record microphone",
+    "start_transcription": "Start Transcription",
+    "save_subtitles": "Save Subtitles",
+    "save_path": "Save Path",
+    "save_path_placeholder": "Please enter a valid target folder",
+    "transcription_results": "Transcription Results",
+    "table_headers": {
+        "no": "No.",
+        "start_time": "Start time",
+        "end_time": "End time",
+        "subtitle_content": "Subtitle Content"
+    },
+    "multi_file_transcription": "Multi-file transcription",
+    "upload_audio_files": "Upload audio",
+    "transcript_completed": "The audio file {filename} Transcript Completed.",
+    "total_transcriptions": "Total Transcriptions Completed {num} audio files",
+    "files_saved": "Transcription Results：{srt_file} and {txt_file} files have been saved to the specified directory.",
+    "invalid_folder": "Please enter a valid target folder",
+    "save_error": "An error occurred while saving the file: {error}",
+    "github_links": "SenseVoice Alibaba Official (GitHub)",
+    "sense_api_repo": "Sense-Api Repository"
+}
