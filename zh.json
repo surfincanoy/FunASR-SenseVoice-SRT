@@ -1,0 +1,30 @@
+{
+    "title": "SenseVoice 与 Whisper",
+    "description": "SenseVoiceSmall 和 Whisper 语音识别，用于快速语音理解",
+    "select_model": "选择ASR模型",
+    "configuration": "配置",
+    "spoken_language": "口语语言",
+    "silence_threshold": "静音阈值",
+    "single_file_transcription": "单文件转录",
+    "upload_audio": "上传音频或录制麦克风",
+    "start_transcription": "开始转录",
+    "save_subtitles": "保存字幕",
+    "save_path": "保存路径",
+    "save_path_placeholder": "请输入有效的目标文件夹",
+    "transcription_results": "转录结果",
+    "table_headers": {
+        "no": "序号",
+        "start_time": "开始时间",
+        "end_time": "结束时间",
+        "subtitle_content": "字幕内容"
+    },
+    "multi_file_transcription": "多文件转录",
+    "upload_audio_files": "上传音频",
+    "transcript_completed": "音频文件 {filename} 转录完成。",
+    "total_transcriptions": "共完成 {num} 个音频文件的转录",
+    "files_saved": "转录结果：{srt_file} 和 {txt_file} 文件已保存到指定目录。",
+    "invalid_folder": "请输入有效的目标文件夹",
+    "save_error": "保存文件时发生错误：{error}",
+    "github_links": "SenseVoice阿里官方(GitHub)",
+    "sense_api_repo": "Sense-Api仓库"
+}
