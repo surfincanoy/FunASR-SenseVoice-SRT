@@ -88,9 +88,9 @@ python main.py
 
 #### 特定言語を指定：
 ```bash
-python main.py --lang=en    # 英語インターフェース
-python main.py --lang=zh    # 中国語インターフェース
-python main.py --lang=ja    # 日本語インターフェース
+uv run main.py --lang=en    # 英語インターフェース
+uv run main.py --lang=zh    # 中国語インターフェース
+uv run main.py --lang=ja    # 日本語インターフェース
 ```
 
 ## <div align="center">📁 プロジェクト構造</div>

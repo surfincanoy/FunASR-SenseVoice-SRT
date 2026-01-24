@@ -88,9 +88,9 @@ python main.py
 
 #### 强制指定语言：
 ```bash
-python main.py --lang=en    # 英文界面
-python main.py --lang=zh    # 中文界面
-python main.py --lang=ja    # 日文界面
+uv run main.py --lang=en    # 英文界面
+uv run main.py --lang=zh    # 中文界面
+uv run main.py --lang=ja    # 日文界面
 ```
 
 ## 📁 项目结构

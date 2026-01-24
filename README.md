@@ -88,9 +88,9 @@ The application automatically detects your system language:
 
 #### Force Specific Language:
 ```bash
-python main.py --lang=en    # English interface
-python main.py --lang=zh    # Chinese interface
-python main.py --lang=ja    # Japanese interface
+uv run main.py --lang=en    # English interface
+uv run main.py --lang=zh    # Chinese interface
+uv run main.py --lang=ja    # Japanese interface
 ```
 
 ## 📁 Project Structure
