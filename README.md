@@ -72,7 +72,7 @@ uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 ### 5. Run Application
 
 ```bash
-python main.py
+uv run main.py
 ```
 
 ## 🌐 Multi-Language Support
