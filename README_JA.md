@@ -23,7 +23,7 @@
 
 ## <div align="center">🌟 主要機能</div>
 
-- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer
+- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-Nano-2512、Fun-ASR-MLT-Nano-2512
 - 🎭 **多言語インターフェース**: 英語、中国語、日本語（簡単拡張）
 - 📝 **一括処理**: 単一ファイルまたは一括変換機能
 - ⚡ **高性能**: CPUとGPUアクセラレーションを最適化
@@ -35,6 +35,7 @@
 ### 1. 環境設定
 
 **uv** を使用して仮想環境を作成（推奨）：
+
 ```bash
 uv venv --python 3.12
 ```
@@ -42,6 +43,7 @@ uv venv --python 3.12
 ### 2. 依存関係のインストール
 
 uvを使用してインストール：
+
 ```bash
 uv pip install -r requirements.txt
 # または
@@ -51,6 +53,7 @@ uv add -r requirements.txt
 ### 3. モデル設定
 
 #### モデルのダウンロードと設定：
+
 - **SenseVoiceSmall**: `disable_update=False` を設定して自動ダウンロード
 - **Whisperモデル**: 追加インストールが必要: `uv pip install -U openai-whisper`
 - **VADモデル**: `fsmn_vad` パスを設定
@@ -60,11 +63,13 @@ uv add -r requirements.txt
 ### 4. ハードウェアアクセラレーション
 
 #### 🎮 NVIDIA GPU（CUDA）：
+
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
 #### 💻 CPUのみ：
+
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
@@ -87,6 +92,7 @@ uv run main.py
 ### 言語オプション
 
 #### 特定言語を指定：
+
 ```bash
 uv run main.py --lang=en    # 英語インターフェース
 uv run main.py --lang=zh    # 中国語インターフェース
@@ -113,10 +119,12 @@ SenseVoice-SRT/
 ## <div align="center">⚙️ 設定説明</div>
 
 ### 対応モデル：
+
 - **SenseVoiceSmall**: 高速、正確な多言語ASR
 - **Whisper-large-v3-turbo**: 最適化バージョン（デフォルト）
 
 ### VAD設定：
+
 - **無音しきい値**: 調整可能（デフォルト：800ms）
 - **セグメント長**: 音声認識向けに最適化
 
@@ -125,6 +133,7 @@ SenseVoice-SRT/
 > **重要提示**: 一括変換を行う際は、まず単一ファイルでテストし、最適な無音しきい値を見つけて、正確な文の分割を確実にしてください。
 
 ### ワークフロー：
+
 1. **単一ファイルテスト**: 最適な設定を検索
 2. **一括処理**: 複数ファイルに設定を適用
 3. **品質チェック**: 生成された字幕を確認
@@ -133,6 +142,7 @@ SenseVoice-SRT/
 ## <div align="center">🤝 コントリビューション</div>
 
 様々なコントリビューションを歓迎します！：
+
 - 🐛 問題の報告
 - 💡 機能の提案
 - 🌍 翻訳の追加

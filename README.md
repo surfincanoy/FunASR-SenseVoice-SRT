@@ -23,7 +23,7 @@ Based on the official SenseVoice WebUI, enhanced with support for single-file or
 
 ## 🌟 Features
 
-- 🎯 **Multi-Model Support**: SenseVoiceSmall, Whisper, Paraformer
+- 🎯 **Multi-Model Support**: SenseVoiceSmall, Whisper, Paraformer, Fun-ASR-Nano-2512, Fun-ASR-MLT-Nano-2512
 - 🎭 **Multi-Language Interface**: English, Chinese, Japanese (easily extensible)
 - 📝 **Batch Processing**: Single file or batch transcription capabilities
 - ⚡ **High Performance**: Optimized for both CPU and GPU acceleration
@@ -35,6 +35,7 @@ Based on the official SenseVoice WebUI, enhanced with support for single-file or
 ### 1. Environment Setup
 
 Create a virtual environment using **uv** (recommended):
+
 ```bash
 uv venv --python 3.12
 ```
@@ -42,6 +43,7 @@ uv venv --python 3.12
 ### 2. Install Dependencies
 
 Install using uv:
+
 ```bash
 uv pip install -r requirements.txt
 # or
@@ -51,6 +53,7 @@ uv add -r requirements.txt
 ### 3. Model Configuration
 
 #### Download and Configure Models:
+
 - **SenseVoiceSmall**: Set `disable_update=False` to auto-download
 - **Whisper Models**: Additional installation required: `uv pip install -U openai-whisper`
 - **VAD Model**: Configure `fsmn_vad` path
@@ -60,11 +63,13 @@ After downloading, set `disable_update=True` to reduce startup time.
 ### 4. Hardware Acceleration
 
 #### 🎮 NVIDIA GPU (CUDA):
+
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
 #### 💻 CPU-Only:
+
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
@@ -80,13 +85,14 @@ uv run main.py
 The application automatically detects your system language:
 
 - 🇺🇸 **English**: Automatically switches to English interface
-- 🇨🇳 **Chinese**: Automatically switches to Chinese interface  
+- 🇨🇳 **Chinese**: Automatically switches to Chinese interface
 - 🇯🇵 **Japanese**: Automatically switches to Japanese interface
 - ➕ **Extensible**: Add new languages by simply adding JSON files to `locales/`
 
 ### Language Options
 
 #### Force Specific Language:
+
 ```bash
 uv run main.py --lang=en    # English interface
 uv run main.py --lang=zh    # Chinese interface
@@ -112,10 +118,12 @@ SenseVoice-SRT/
 ## ⚙️ Configuration
 
 ### Supported Models:
+
 - **SenseVoiceSmall**: Fast, accurate, multi-language ASR
 - **Whisper-large-v3-turbo**: Optimized version (default)
 
 ### VAD Settings:
+
 - **Silence Threshold**: Adjustable (default: 800ms)
 - **Segment Length**: Optimized for speech recognition
 
@@ -124,6 +132,7 @@ SenseVoice-SRT/
 > **Important**: When performing batch transcription, always test with a single file first to find the optimal silence threshold and ensure accurate sentence segmentation.
 
 ### Workflow:
+
 1. **Single File Test**: Find optimal settings
 2. **Batch Processing**: Apply settings to multiple files
 3. **Quality Check**: Review generated subtitles
@@ -132,8 +141,9 @@ SenseVoice-SRT/
 ## 🤝 Contributing
 
 We welcome contributions! Please feel free to:
+
 - 🐛 Report issues
-- 💡 Suggest features  
+- 💡 Suggest features
 - 🌍 Add translations
 - 🔧 Improve code
 
