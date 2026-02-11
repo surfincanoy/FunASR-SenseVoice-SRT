@@ -26,5 +26,30 @@
     "invalid_folder": "Please enter a valid target folder",
     "save_error": "An error occurred while saving the file: {error}",
     "github_links": "SenseVoice Alibaba Official (GitHub)",
-    "sense_api_repo": "Sense-Api Repository"
+    "sense_api_repo": "Sense-Api Repository",
+    "language_names": {
+        "auto": "Auto-detect",
+        "zh": "Chinese",
+        "en": "English",
+        "yue": "Cantonese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "vi": "Vietnamese",
+        "id": "Indonesian",
+        "th": "Thai",
+        "ms": "Malay",
+        "fil": "Filipino",
+        "ar": "Arabic",
+        "hu": "Hungarian",
+        "ga": "Irish",
+        "lv": "Latvian",
+        "lt": "Lithuanian",
+        "mt": "Maltese",
+        "pl": "Polish",
+        "pt": "Portuguese",
+        "ro": "Romanian",
+        "sk": "Slovak",
+        "sl": "Slovenian",
+        "sv": "Swedish"
+    }
 }

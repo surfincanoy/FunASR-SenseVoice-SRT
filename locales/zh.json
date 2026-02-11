@@ -26,5 +26,30 @@
     "invalid_folder": "请输入有效的目标文件夹",
     "save_error": "保存文件时发生错误：{error}",
     "github_links": "SenseVoice阿里官方(GitHub)",
-    "sense_api_repo": "Sense-Api仓库"
+    "sense_api_repo": "Sense-Api仓库",
+    "language_names": {
+        "auto": "自动检测",
+        "zh": "中文",
+        "en": "英文",
+        "yue": "粤语",
+        "ja": "日文",
+        "ko": "韩文",
+        "vi": "越南语",
+        "id": "印尼语",
+        "th": "泰语",
+        "ms": "马来语",
+        "fil": "菲律宾语",
+        "ar": "阿拉伯语",
+        "hu": "匈牙利语",
+        "ga": "爱尔兰语",
+        "lv": "拉脱维亚语",
+        "lt": "立陶宛语",
+        "mt": "马耳他语",
+        "pl": "波兰语",
+        "pt": "葡萄牙语",
+        "ro": "罗马尼亚语",
+        "sk": "斯洛伐克语",
+        "sl": "斯洛文尼亚语",
+        "sv": "瑞典语"
+    }
 }
