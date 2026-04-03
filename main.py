@@ -13,7 +13,6 @@ import torchaudio
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
-# Import internationalization module
 from utils.translator import _, initialize_from_main
 
 if __name__ == "__main__":
@@ -51,8 +50,6 @@ asr_models = {
     "Whisper": "iic/Whisper-large-v3-turbo",
     "Paraformer-zh": "paraformer-zh",
     "Paraformer-en": "iic/speech_paraformer_asr-en-16k-vocab4199-pytorch",
-    "Fun-ASR-Nano-2512": "FunAudioLLM/Fun-ASR-Nano-2512",
-    "Fun-ASR-MLT-Nano-2512": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
 }
 
 # Language options
@@ -61,32 +58,6 @@ language_options = {
     "Whisper": ["auto", "zh", "en", "ja"],
     "Paraformer-zh": ["auto", "zh"],
     "Paraformer-en": ["auto", "en"],
-    "Fun-ASR-Nano-2512": ["auto", "zh", "en", "ja"],  # 中文、英文、日文
-    "Fun-ASR-MLT-Nano-2512": [
-        "auto",
-        "zh",
-        "en",
-        "yue",
-        "ja",
-        "ko",
-        "vi",
-        "id",
-        "th",
-        "ms",
-        "fil",
-        "ar",
-        "hu",
-        "ga",
-        "lv",
-        "lt",
-        "mt",
-        "pl",
-        "pt",
-        "ro",
-        "sk",
-        "sl",
-        "sv",
-    ],  # 多语言支持
 }
 
 # Loaded model cache
@@ -118,15 +89,6 @@ def get_model(model_name):
                 punc_model="ct-punc-c",
                 punc_model_revision="v2.0.4",
                 device=device,
-                disable_update=True,
-            )
-        elif model_name in ["Fun-ASR-Nano-2512", "Fun-ASR-MLT-Nano-2512"]:
-            loaded_models[model_name] = AutoModel(
-                model=asr_models[model_name],
-                device=device,
-                trust_remote_code=True,
-                remote_code="./model.py",
-                vad_kwargs={"max_single_segment_time": 30000},
                 disable_update=True,
             )
     return loaded_models[model_name]
@@ -180,24 +142,25 @@ def cut_wav_to_ndarray(wav_path: str, start_s: float, end_s: float) -> np.ndarra
     return audio
 
 
-def cut_wav_to_tensor(wav_path: str, start_s: float, end_s: float) -> torch.Tensor:
-    """Cut audio segment and return as torch.Tensor for Fun-ASR-Nano models"""
-    if end_s <= start_s:
-        raise ValueError("end_s must be > start_s")
+# def cut_wav_to_tensor(wav_path: str, start_s: float, end_s: float) -> torch.Tensor:
+#     if end_s <= start_s:
+#         raise ValueError("end_s must be > start_s")
 
-    with sf.SoundFile(wav_path) as f:
-        sr = f.samplerate
-        start_frame = max(0, int(start_s / 1000 * sr))
-        end_frame = max(start_frame + 1, int(end_s / 1000 * sr))
-        frames = end_frame - start_frame
-        f.seek(start_frame)
-        audio = f.read(frames, dtype="float32")  # read as float32
-    # convert to tensor and resample to 16kHz
-    audio_tensor = torch.tensor(audio)
-    if sr != 16000:
-        resampler = torchaudio.transforms.Resample(sr, 16000)
-        audio_tensor = resampler(audio_tensor)
-    return audio_tensor
+#     with sf.SoundFile(wav_path) as f:
+#         sr = f.samplerate
+#         start_frame = max(0, int(start_s / 1000 * sr))
+#         end_frame = max(start_frame + 1, int(end_s / 1000 * sr))
+#         frames = end_frame - start_frame
+#         f.seek(start_frame)
+#         audio = f.read(frames, dtype="float32")  # read as float32
+
+#     # Convert to tensor and resample to 16kHz
+#     audio_tensor = torch.tensor(audio)
+#     if sr != 16000:
+#         resampler = torchaudio.transforms.Resample(sr, 16000)
+#         audio_tensor = resampler(audio_tensor)
+
+#     return audio_tensor
 
 
 # model inference function
@@ -239,34 +202,6 @@ def model_inference(input_wav, model_name, language, silence_threshold):
             "en": "en",
         }
         selected_language = language_abbr.get(language, "en")
-    elif model_name in ["Fun-ASR-Nano-2512", "Fun-ASR-MLT-Nano-2512"]:
-        # Fun-ASR-Nano models language mapping
-        language_abbr = {
-            "auto": "auto",
-            "zh": "zh",
-            "en": "en",
-            "yue": "yue",
-            "ja": "ja",
-            "ko": "ko",
-            "vi": "vi",
-            "id": "id",
-            "th": "th",
-            "ms": "ms",
-            "fil": "fil",
-            "ar": "ar",
-            "hu": "hu",
-            "ga": "ga",
-            "lv": "lv",
-            "lt": "lt",
-            "mt": "mt",
-            "pl": "pl",
-            "pt": "pt",
-            "ro": "ro",
-            "sk": "sk",
-            "sl": "sl",
-            "sv": "sv",
-        }
-        selected_language = language_abbr.get(language, "auto")
 
     # load VAD model
     vad_model = AutoModel(
@@ -293,11 +228,7 @@ def model_inference(input_wav, model_name, language, silence_threshold):
 
     for segment in segments:
         start_time, end_time = segment
-        # Choose audio format based on model type
-        if model_name in ["Fun-ASR-Nano-2512", "Fun-ASR-MLT-Nano-2512"]:
-            audio_temp = cut_wav_to_tensor(input_wav, start_time, end_time)
-        else:
-            audio_temp = cut_wav_to_ndarray(input_wav, start_time, end_time)
+        audio_temp = cut_wav_to_ndarray(input_wav, start_time, end_time)
 
         cleaned_text = ""
         if model_name == "SenseVoiceSmall":
@@ -345,21 +276,6 @@ def model_inference(input_wav, model_name, language, silence_threshold):
                 hotword="",
             )
             cleaned_text = res[0]["text"]
-            cleaned_text = remove_trailing_punctuation(cleaned_text)
-        elif model_name in ["Fun-ASR-Nano-2512", "Fun-ASR-MLT-Nano-2512"]:
-            # Fun-ASR-Nano models use similar generation as SenseVoice
-            res = asr_model.generate(
-                input=[audio_temp],
-                cache={},
-                language=selected_language,
-                use_itn=True,
-                batch_size_s=60,
-            )
-            cleaned_text = rich_transcription_postprocess(res[0]["text"])
-            cleaned_text = emoji.replace_emoji(cleaned_text, replace="")
-            if selected_language not in ["en"]:
-                cleaned_text = cleaned_text.replace(" ", "").strip()
-            cleaned_text = remove_trailing_punctuation(cleaned_text)
 
         srt_result += (
             str(srt_id)
@@ -440,8 +356,6 @@ def launch():
                     "Whisper",
                     "Paraformer-zh",
                     "Paraformer-en",
-                    "Fun-ASR-Nano-2512",
-                    "Fun-ASR-MLT-Nano-2512",
                 ],
                 value="SenseVoiceSmall",
                 label=_("select_model"),
