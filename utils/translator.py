@@ -160,10 +160,6 @@ def get_current_language() -> str:
     return translator.get_current_language()
 
 
-# Manual initialization - do NOT auto-initialize on import
-# initialize_from_args()
-
-
 # Global initialization function to call from main.py
 def initialize_from_main():
     """Initialize from main.py with command line support"""
@@ -184,4 +180,3 @@ def initialize_from_main():
     else:
         # Use default language
         print(f"No language specified, using default: {translator.default_language}")
-
