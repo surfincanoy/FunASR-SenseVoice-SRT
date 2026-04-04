@@ -1,4 +1,4 @@
-# <div align="center">SenseVoice-SRT 🎙️🎬</div>
+# <div align="center">FireRedVAD-ASR-SRT 🎙️🎬</div>
 
 <div align="center">
 
@@ -11,24 +11,24 @@
 
 <div align="center">
 
-**高度な音声認識と字幕生成ツール**
+**高度な音声認識および字幕生成ツール**
 
 </div>
 
-公式SenseVoice WebUIをベースに、単一ファイルまたは一括でのSRT字幕出力をサポートし、選択可能なASRモデルに対応しました。
+FireRedVADを複数のASRモデルと統合し、単一ファイルまたはバッチでのSRT字幕生成をサポートします。
 
 [中文](README_ZH.md) | [English](README.md) | [日本語](README_JA.md)
 
 ---
 
-## <div align="center">🌟 主要機能</div>
+## 🌟 主な特徴
 
-- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-MLT-Nano、Fun-MLT-Nano
-- 🎭 **多言語インターフェース**: 英語、中国語、日本語（簡単拡張）
-- 📝 **一括処理**: 単一ファイルまたは一括変換機能
-- ⚡ **高性能**: CPUとGPUアクセラレーションを最適化
-- 🎛️ **柔軟な設定**: 無音しきい値とモデル設定を調整可能
-- 📊 **豊富な出力**: タイムスタンプ付きのSRT字幕フォーマット
+- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-Nano、Fun-ASR-MLT-Nano
+- 🎭 **多言語インターフェース**: 英語、中国語、日本語（簡単に拡張可能）
+- 📝 **バッチ処理**: 単一ファイルまたはバッチでの文字起こし機能
+- ⚡ **高性能**: CPUとGPUアクセラレーションの両方に最適化
+- 🎛️ **柔軟な設定**: VADパラメータとモデル設定を調整可能
+- 📊 **豊富な出力**: タイムスタンプ付きSRT字幕フォーマット
 
 ## <div align="center">🚀 クイックスタート</div>
 
@@ -47,18 +47,16 @@ uvを使用してインストール：
 ```bash
 uv pip install -r requirements.txt
 # または
-uv add -r requirements.txt
+uv sync
 ```
 
 ### 3. モデル設定
 
 #### モデルのダウンロードと設定：
 
-- **SenseVoiceSmall**: `disable_update=False` を設定して自動ダウンロード
-- **Whisperモデル**: 追加インストールが必要: `uv pip install -U openai-whisper`
-- **VADモデル**: `fsmn_vad` パスを設定
-
-ダウンロード完了後、`disable_update=True` を設定して起動時間を短縮。
+- **SenseVoiceSmall**: `disable_update=True` で自動ダウンロード
+- **Whisper**: 追加インストールが必要：`uv pip install -U openai-whisper`
+- **VADモデル**: FireRedVAD、デフォルトで `.pretrained_models/` に配置
 
 ### 4. ハードウェアアクセラレーション
 
@@ -80,18 +78,18 @@ uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 uv run main.py
 ```
 
-## <div align="center">🌐 多言語サポート</div>
+## 🌐 多言語サポート
 
-アプリケーションはシステム言語を自動検出：
+アプリケーションはシステム言語を自動検出します：
 
 - 🇺🇸 **英語**: 自動的に英語インターフェースに切り替え
 - 🇨🇳 **中国語**: 自動的に中国語インターフェースに切り替え
 - 🇯🇵 **日本語**: 自動的に日本語インターフェースに切り替え
-- ➕ **拡張可能**: `locales/` にJSONファイルを追加するだけで新言語をサポート
+- ➕ **簡単に拡張**: `locales/` にJSONファイルを追加するだけで新言語をサポート
 
 ### 言語オプション
 
-#### 特定言語を指定：
+#### 言語を強制指定：
 
 ```bash
 uv run main.py --lang=en    # 英語インターフェース
@@ -99,10 +97,10 @@ uv run main.py --lang=zh    # 中国語インターフェース
 uv run main.py --lang=ja    # 日本語インターフェース
 ```
 
-## <div align="center">📁 プロジェクト構造</div>
+## 📁 プロジェクト構造
 
 ```
-SenseVoice-SRT/
+FireRed/
 ├── 📄 main.py                 # メインプログラム
 ├── 📁 utils/                  # ユーティリティモジュール
 │   └── 🌐 translator.py        # 多言語サポート
@@ -110,59 +108,53 @@ SenseVoice-SRT/
 │   ├── 🇺🇸 en.json          # 英語
 │   ├── 🇨🇳 zh.json          # 中国語
 │   └── 🇯🇵 ja.json          # 日本語
-├── 📄 requirements.txt         # 依存関係リスト
-├── 📄 README.md              # 英語版
+├── 📁 tools/                  # Fun-ASRツール
+├── 📄 model.py                # Fun-ASRモデルコード
+├── 📄 ctc.py                  # CTCモジュール
+├── 📄 pyproject.toml          # プロジェクト設定
+├── 📄 README.md              # このファイル
 ├── 📄 README_ZH.md           # 中国語版
-└── 📄 README_JA.md           # 日本語版（このファイル）
+└── 📄 README_JA.md           # 日本語版
 ```
 
-## <div align="center">⚙️ 設定説明</div>
+## 🎯 使用のヒント
 
-### 対応モデル：
-
-- **SenseVoiceSmall**: 高速、正確な多言語ASR
-- **Whisper-large-v3-turbo**: 最適化バージョン（デフォルト）
-
-### VAD設定：
-
-- **無音しきい値**: 調整可能（デフォルト：800ms）
-- **セグメント長**: 音声認識向けに最適化
-
-## <div align="center">🎯 使用のコツ</div>
-
-> **重要提示**: 一括変換を行う際は、まず単一ファイルでテストし、最適な無音しきい値を見つけて、正確な文の分割を確実にしてください。
+> **重要**: バッチ文字起こしを行う際は、必ず単一ファイルでの文字起こしを先に行い、最適なVADパラメータを見つけて、正確な文章区切りを確認してください。
 
 ### ワークフロー：
 
-1. **単一ファイルテスト**: 最適な設定を検索
-2. **一括処理**: 複数ファイルに設定を適用
+1. **単一ファイルテスト**: 最適な設定を見つける
+2. **バッチ処理**: 設定を複数のファイルに適用
 3. **品質チェック**: 生成された字幕を確認
-4. **エクスポート**: 指定場所に保存
+4. **エクスポート＆保存**: 指定された場所に保存
 
-## <div align="center">🤝 コントリビューション</div>
+## 🤝 貢献ガイド
 
-様々なコントリビューションを歓迎します！：
+あらゆる種類の貢献を歓迎します！お気軽に：
 
-- 🐛 問題の報告
-- 💡 機能の提案
-- 🌍 翻訳の追加
-- 🔧 コードの改善
+- 🐛 バグを報告
+- 💡 機能を提案
+- 🌍 翻訳を追加
+- 🔧 コードを改善
 
-## <div align="center">📄 オープンソースライセンス</div>
+## 📄 ライセンス
 
-本プロジェクトはMITライセンスに基づきオープンソースです - 詳細は [LICENSE](LICENSE) ファイルを確認してください。
+このプロジェクトは MIT ライセンスの下でオープンソース化されています - 詳細は [LICENSE](LICENSE) ファイルをご覧ください。
 
-## <div align="center">🙏 謝辞</div>
+## 🙏 謝辞
 
-- [FunAudioLLM/SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - コア音声認識
-- [OpenAI Whisper](https://github.com/openai/whisper) - Whisperモデルサポート
+- [FireRedVAD](https://github.com/FireRedTeam/FireRedVAD) - 音声活動検出
+- [Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR) - 音声認識
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 音声認識
+- [OpenAI Whisper](https://github.com/openai/whisper) - 音声認識
 - [Gradio](https://gradio.app/) - Webインターフェースフレームワーク
+
 
 ---
 
 <div align="center">
 
-**❤️ 音声認識コミュニティのために作成**
+**❤️ 音声認識コミュニティのために作られました**
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FunAudioLLM/SenseVoice&type=Date)](https://star-history.com/#FunAudioLLM/SenseVoice&Date)
 

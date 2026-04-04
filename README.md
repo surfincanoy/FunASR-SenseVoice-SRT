@@ -1,4 +1,4 @@
-# <div align="center">SenseVoice-SRT 🎙️🎬</div>
+# <div align="center">FireRedVAD-ASR-SRT 🎙️🎬</div>
 
 <div align="center">
 
@@ -11,30 +11,30 @@
 
 <div align="center">
 
-**Advanced Speech Recognition & Subtitle Generation Tool**
+**Advanced Speech Recognition and Subtitle Generation Tool**
 
 </div>
 
-Based on the official SenseVoice WebUI, enhanced with support for single-file or batch SRT subtitle output with selectable ASR models.
+Integrated FireRedVAD with multiple ASR models, supporting single-file or batch SRT subtitle generation.
 
 [中文](README_ZH.md) | [English](README.md) | [日本語](README_JA.md)
 
 ---
 
-## 🌟 Features
+## 🌟 Core Features
 
-- 🎯 **Multi-Model Support**: SenseVoiceSmall, Whisper, Paraformer, Fun-ASR-MLT-Nano, Fun-ASR-Nano
-- 🎭 **Multi-Language Interface**: English, Chinese, Japanese (easily extensible)
-- 📝 **Batch Processing**: Single file or batch transcription capabilities
+- 🎯 **Multi-model Support**: SenseVoiceSmall, Whisper, Paraformer, Fun-ASR-Nano, Fun-ASR-MLT-Nano
+- 🎭 **Multi-language Interface**: English, Chinese, Japanese (easily extensible)
+- 📝 **Batch Processing**: Single-file or batch transcription
 - ⚡ **High Performance**: Optimized for both CPU and GPU acceleration
-- 🎛️ **Flexible Configuration**: Adjustable silence threshold and model settings
+- 🎛️ **Flexible Configuration**: Adjustable VAD parameters and model settings
 - 📊 **Rich Output**: SRT subtitle format with timestamps
 
 ## <div align="center">🚀 Quick Start</div>
 
 ### 1. Environment Setup
 
-Create a virtual environment using **uv** (recommended):
+Use **uv** to create a virtual environment (recommended):
 
 ```bash
 uv venv --python 3.12
@@ -47,18 +47,16 @@ Install using uv:
 ```bash
 uv pip install -r requirements.txt
 # or
-uv add -r requirements.txt
+uv sync
 ```
 
 ### 3. Model Configuration
 
-#### Download and Configure Models:
+#### Download and configure models:
 
-- **SenseVoiceSmall**: Set `disable_update=False` to auto-download
-- **Whisper Models**: Additional installation required: `uv pip install -U openai-whisper`
-- **VAD Model**: Configure `fsmn_vad` path
-
-After downloading, set `disable_update=True` to reduce startup time.
+- **SenseVoiceSmall**: Automatically downloads with `disable_update=True`
+- **Whisper**: Requires additional installation: `uv pip install -U openai-whisper`
+- **VAD Model**: FireRedVAD, placed in `.pretrained_models/` by default
 
 ### 4. Hardware Acceleration
 
@@ -68,30 +66,30 @@ After downloading, set `disable_update=True` to reduce startup time.
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
-#### 💻 CPU-Only:
+#### 💻 CPU Only:
 
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### 5. Run Application
+### 5. Run the Application
 
 ```bash
 uv run main.py
 ```
 
-## 🌐 Multi-Language Support
+## 🌐 Multi-language Support
 
-The application automatically detects your system language:
+The application automatically detects system language:
 
 - 🇺🇸 **English**: Automatically switches to English interface
 - 🇨🇳 **Chinese**: Automatically switches to Chinese interface
 - 🇯🇵 **Japanese**: Automatically switches to Japanese interface
-- ➕ **Extensible**: Add new languages by simply adding JSON files to `locales/`
+- ➕ **Easy to Extend**: Simply add a JSON file in `locales/` to support new languages
 
 ### Language Options
 
-#### Force Specific Language:
+#### Force a specific language:
 
 ```bash
 uv run main.py --lang=en    # English interface
@@ -102,66 +100,61 @@ uv run main.py --lang=ja    # Japanese interface
 ## 📁 Project Structure
 
 ```
-SenseVoice-SRT/
-├── 📄 main.py                 # Main application
+FireRed/
+├── 📄 main.py                 # Main program
 ├── 📁 utils/                  # Utility modules
 │   └── 🌐 translator.py        # Multi-language support
 ├── 📁 locales/                # Language translations
 │   ├── 🇺🇸 en.json          # English
 │   ├── 🇨🇳 zh.json          # Chinese
 │   └── 🇯🇵 ja.json          # Japanese
-├── 📄 requirements.txt         # Dependencies
+├── 📁 tools/                  # Fun-ASR tools
+├── 📄 model.py                # Fun-ASR model code
+├── 📄 ctc.py                  # CTC module
+├── 📄 pyproject.toml          # Project configuration
 ├── 📄 README.md              # This file
-└── 📄 README_ZH.md           # Chinese version
+├── 📄 README_ZH.md           # Chinese version
+└── 📄 README_JA.md           # Japanese version
 ```
-
-## ⚙️ Configuration
-
-### Supported Models:
-
-- **SenseVoiceSmall**: Fast, accurate, multi-language ASR
-- **Whisper-large-v3-turbo**: Optimized version (default)
-
-### VAD Settings:
-
-- **Silence Threshold**: Adjustable (default: 800ms)
-- **Segment Length**: Optimized for speech recognition
 
 ## 🎯 Usage Tips
 
-> **Important**: When performing batch transcription, always test with a single file first to find the optimal silence threshold and ensure accurate sentence segmentation.
+> **Important**: When performing batch transcription, always try single-file transcription first to find the optimal VAD parameters and ensure accurate sentence segmentation.
 
 ### Workflow:
 
-1. **Single File Test**: Find optimal settings
+1. **Single-file Test**: Find the best settings
 2. **Batch Processing**: Apply settings to multiple files
 3. **Quality Check**: Review generated subtitles
-4. **Export**: Save to desired location
+4. **Export & Save**: Save to the specified location
 
 ## 🤝 Contributing
 
-We welcome contributions! Please feel free to:
+We welcome all kinds of contributions! Feel free to:
 
-- 🐛 Report issues
+- 🐛 Report bugs
 - 💡 Suggest features
 - 🌍 Add translations
 - 🔧 Improve code
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is open-sourced under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- [FunAudioLLM/SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Core speech recognition
-- [OpenAI Whisper](https://github.com/openai/whisper) - Whisper model support
-- [Gradio](https://gradio.app/) - Web interface framework
+- [FireRedVAD](https://github.com/FireRedTeam/FireRedVAD) - Voice Activity Detection
+- [Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR) - Speech Recognition
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Speech Recognition
+- [OpenAI Whisper](https://github.com/openai/whisper) - Speech Recognition
+- [Gradio](https://gradio.app/) - Web Interface Framework
+
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the speech recognition community**
+**❤️ Crafted for the Speech Recognition Community**
 
 [![Star History Chart](https://api.star-history.com/svg?repos=FunAudioLLM/SenseVoice&type=Date)](https://star-history.com/#FunAudioLLM/SenseVoice&Date)
 

@@ -1,4 +1,4 @@
-# <div align="center">SenseVoice-SRT 🎙️🎬</div>
+# <div align="center">FireRedVAD-ASR-SRT 🎙️🎬</div>
 
 <div align="center">
 
@@ -15,7 +15,7 @@
 
 </div>
 
-基于SenseVoice官方WebUI修改而来，支持单文件或批量输出SRT字幕，可选择ASR模型。
+集成 FireRedVAD 与多种 ASR 模型，支持单文件或批量输出 SRT 字幕。
 
 [中文](README_ZH.md) | [English](README.md) | [日本語](README_JA.md)
 
@@ -26,9 +26,9 @@
 - 🎯 **多模型支持**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-Nano、Fun-ASR-MLT-Nano
 - 🎭 **多语言界面**: 英文、中文、日文（轻松扩展）
 - 📝 **批量处理**: 单文件或批量转录功能
-- ⚡ **高性能**: 优化支持CPU和GPU加速
-- 🎛️ **灵活配置**: 可调节静音阈值和模型设置
-- 📊 **丰富输出**: SRT字幕格式，带时间戳
+- ⚡ **高性能**: 优化支持 CPU 和 GPU 加速
+- 🎛️ **灵活配置**: 可调节 VAD 参数和模型设置
+- 📊 **丰富输出**: SRT 字幕格式，带时间戳
 
 ## <div align="center">🚀 快速开始</div>
 
@@ -42,33 +42,31 @@ uv venv --python 3.12
 
 ### 2. 安装依赖
 
-使用uv安装：
+使用 uv 安装：
 
 ```bash
 uv pip install -r requirements.txt
 # 或者
-uv add -r requirements.txt
+uv sync
 ```
 
 ### 3. 模型配置
 
 #### 下载并配置模型：
 
-- **SenseVoiceSmall**: 设置 `disable_update=False` 自动下载
-- **Whisper模型**: 需要额外安装：`uv pip install -U openai-whisper`
-- **VAD模型**: 配置 `fsmn_vad` 路径
-
-下载完成后，设置 `disable_update=True` 减少启动时间。
+- **SenseVoiceSmall**: 设置 `disable_update=True` 自动下载
+- **Whisper 模型**: 需要额外安装：`uv pip install -U openai-whisper`
+- **VAD 模型**: FireRedVAD，默认放置在 `.pretrained_models/`
 
 ### 4. 硬件加速
 
-#### 🎮 NVIDIA独显（CUDA）：
+#### 🎮 NVIDIA 独显（CUDA）：
 
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
-#### 💻 仅CPU：
+#### 💻 仅 CPU：
 
 ```bash
 uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
@@ -87,7 +85,7 @@ uv run main.py
 - 🇺🇸 **英文**: 自动切换到英文界面
 - 🇨🇳 **中文**: 自动切换到中文界面
 - 🇯🇵 **日文**: 自动切换到日文界面
-- ➕ **易于扩展**: 只需在 `locales/` 中添加JSON文件即可支持新语言
+- ➕ **易于扩展**: 只需在 `locales/` 中添加 JSON 文件即可支持新语言
 
 ### 语言选项
 
@@ -102,7 +100,7 @@ uv run main.py --lang=ja    # 日文界面
 ## 📁 项目结构
 
 ```
-SenseVoice-SRT/
+FireRed/
 ├── 📄 main.py                 # 主程序
 ├── 📁 utils/                  # 工具模块
 │   └── 🌐 translator.py        # 多语言支持
@@ -110,26 +108,18 @@ SenseVoice-SRT/
 │   ├── 🇺🇸 en.json          # 英文
 │   ├── 🇨🇳 zh.json          # 中文
 │   └── 🇯🇵 ja.json          # 日文
-├── 📄 requirements.txt         # 依赖列表
+├── 📁 tools/                  # Fun-ASR 工具
+├── 📄 model.py                # Fun-ASR 模型代码
+├── 📄 ctc.py                  # CTC 模块
+├── 📄 pyproject.toml          # 项目配置
 ├── 📄 README.md              # 本文件
-└── 📄 README_ZH.md           # 中文版
+├── 📄 README_ZH.md           # 中文版
+└── 📄 README_JA.md           # 日文版
 ```
-
-## ⚙️ 配置说明
-
-### 支持的模型：
-
-- **SenseVoiceSmall**: 快速、准确的多语言ASR
-- **Whisper-large-v3-turbo**: 优化版本（默认）
-
-### VAD设置：
-
-- **静音阈值**: 可调节（默认：800ms）
-- **片段长度**: 针对语音识别优化
 
 ## 🎯 使用技巧
 
-> **重要提示**: 进行批量转录时，务必先尝试单文件转录，找到最佳的静音阈值，确保断句的准确性。
+> **重要提示**: 进行批量转录时，务必先尝试单文件转录，找到最佳的 VAD 参数，确保断句的准确性。
 
 ### 使用流程：
 
@@ -153,9 +143,12 @@ SenseVoice-SRT/
 
 ## 🙏 致谢
 
-- [FunAudioLLM/SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 核心语音识别
-- [OpenAI Whisper](https://github.com/openai/whisper) - Whisper模型支持
-- [Gradio](https://gradio.app/) - Web界面框架
+- [FireRedVAD](https://github.com/FireRedTeam/FireRedVAD) - 语音活动检测
+- [Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR) - 语音识别
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 语音识别
+- [OpenAI Whisper](https://github.com/openai/whisper) - 语音识别
+- [Gradio](https://gradio.app/) - Web 界面框架
+
 
 ---
 
