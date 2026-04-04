@@ -23,7 +23,7 @@
 
 ## 🌟 核心特性
 
-- 🎯 **多模型支持**: SenseVoiceSmall、Whisper、Paraformer
+- 🎯 **多模型支持**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-Nano、Fun-ASR-MLT-Nano
 - 🎭 **多语言界面**: 英文、中文、日文（轻松扩展）
 - 📝 **批量处理**: 单文件或批量转录功能
 - ⚡ **高性能**: 优化支持CPU和GPU加速
