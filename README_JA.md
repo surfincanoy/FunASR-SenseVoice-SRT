@@ -23,7 +23,7 @@
 
 ## <div align="center">🌟 主要機能</div>
 
-- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer
+- 🎯 **マルチモデル対応**: SenseVoiceSmall、Whisper、Paraformer、Fun-ASR-MLT-Nano、Fun-MLT-Nano
 - 🎭 **多言語インターフェース**: 英語、中国語、日本語（簡単拡張）
 - 📝 **一括処理**: 単一ファイルまたは一括変換機能
 - ⚡ **高性能**: CPUとGPUアクセラレーションを最適化
