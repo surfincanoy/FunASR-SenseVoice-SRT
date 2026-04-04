@@ -23,7 +23,7 @@ Based on the official SenseVoice WebUI, enhanced with support for single-file or
 
 ## 🌟 Features
 
-- 🎯 **Multi-Model Support**: SenseVoiceSmall, Whisper, Paraformer
+- 🎯 **Multi-Model Support**: SenseVoiceSmall, Whisper, Paraformer, Fun-ASR-MLT-Nano, Fun-ASR-Nano
 - 🎭 **Multi-Language Interface**: English, Chinese, Japanese (easily extensible)
 - 📝 **Batch Processing**: Single file or batch transcription capabilities
 - ⚡ **High Performance**: Optimized for both CPU and GPU acceleration
