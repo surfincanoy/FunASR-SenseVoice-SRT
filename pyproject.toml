@@ -1,0 +1,26 @@
+[project]
+name = "firered-asr-srt"
+version = "0.1.0"
+description = "FireRedVAD + ASR SRT Generator with Gradio UI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fireredvad",
+    "funasr",
+    "gradio",
+    "emoji",
+    "numpy",
+    "soundfile",
+    "torch",
+    "torchaudio",
+    "transformers",
+    "numba",
+    "editdistance>=0.8.1",
+]
+
+[project.scripts]
+firered-asr-srt = "main:launch"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

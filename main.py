@@ -1,72 +1,144 @@
 import shutil
 import string
+import subprocess
 import threading
 import webbrowser
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import emoji
 import gradio as gr
 import numpy as np
-import soundfile as sf  # Used for reading and cutting audio files
+import soundfile as sf
 import torch
 import torchaudio
+from fireredvad import FireRedVad, FireRedVadConfig
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
-
-from utils.translator import _, initialize_from_main
+from utils.translator import _, initialize_from_main, translator
 
 if __name__ == "__main__":
-    # Initialize language system
     initialize_from_main()
 
 
 def remove_trailing_punctuation(text: str) -> str:
-    """Remove any punctuation marks from the end of text line.
-
-    Removes trailing punctuation while preserving internal punctuation.
-    Examples:
-        "Hello world." -> "Hello world"
-        "这是一个测试。" -> "这是一个测试"
-        "Testing, one, two!" -> "Testing, one, two"
-        "With (parentheses)." -> "With (parentheses)"
-    """
-    # All punctuation marks to remove from end of line
     trailing_punct = string.punctuation + "。，、；：！？.?!"
-
-    # Remove trailing punctuation characters
     text = text.rstrip(trailing_punct)
-
-    # Also remove trailing whitespace
     text = text.rstrip()
-
     return text
 
 
-vad_model_dir = "fsmn-vad"
+def convert_to_wav(input_path: str, output_path: Path) -> None:
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            input_path,
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-acodec",
+            "pcm_s16le",
+            "-f",
+            "wav",
+            str(output_path),
+        ],
+        check=True,
+        capture_output=True,
+    )
 
-# ASR model paths - Whisper default used
+
+# ASR model paths
 asr_models = {
     "SenseVoiceSmall": "iic/SenseVoiceSmall",
     "Whisper": "iic/Whisper-large-v3-turbo",
     "Paraformer-zh": "paraformer-zh",
     "Paraformer-en": "iic/speech_paraformer_asr-en-16k-vocab4199-pytorch",
+    "Fun-ASR-Nano": "FunAudioLLM/Fun-ASR-Nano-2512",
+    "Fun-ASR-MLT-Nano": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
 }
 
-# Language options
+# Language options: {display_key: asr_value}
+# display_key is looked up in locale language_names for GUI display
+# asr_value is the actual value passed to the ASR model
 language_options = {
-    "SenseVoiceSmall": ["auto", "zh", "en", "yue", "ja", "ko"],
-    "Whisper": ["auto", "zh", "en", "ja"],
-    "Paraformer-zh": ["auto", "zh"],
-    "Paraformer-en": ["auto", "en"],
+    "SenseVoiceSmall": {
+        "zh": "zh",
+        "en": "en",
+        "yue": "yue",
+        "ja": "ja",
+        "ko": "ko",
+    },
+    "Whisper": {
+        "zh": "zh",
+        "en": "en",
+        "ja": "ja",
+    },
+    "Paraformer-zh": {
+        "zh": "zh",
+    },
+    "Paraformer-en": {
+        "en": "en",
+    },
+    "Fun-ASR-Nano": {
+        "中文": "中文",
+        "英文": "英文",
+        "日文": "日文",
+    },
+    "Fun-ASR-MLT-Nano": {
+        "中文": "中文",
+        "英文": "英文",
+        "日文": "日文",
+        "粤语": "粤语",
+        "韩文": "韩文",
+        "越南语": "越南语",
+        "印尼语": "印尼语",
+        "泰语": "泰语",
+        "马来语": "马来语",
+        "菲律宾语": "菲律宾语",
+        "阿拉伯语": "阿拉伯语",
+        "印地语": "印地语",
+        "保加利亚语": "保加利亚语",
+        "克罗地亚语": "克罗地亚语",
+        "捷克语": "捷克语",
+        "丹麦语": "丹麦语",
+        "荷兰语": "荷兰语",
+        "爱沙尼亚语": "爱沙尼亚语",
+        "芬兰语": "芬兰语",
+        "希腊语": "希腊语",
+        "匈牙利语": "匈牙利语",
+        "爱尔兰语": "爱尔兰语",
+        "拉脱维亚语": "拉脱维亚语",
+        "立陶宛语": "立陶宛语",
+        "马耳他语": "马耳他语",
+        "波兰语": "波兰语",
+        "葡萄牙语": "葡萄牙语",
+        "罗马尼亚语": "罗马尼亚语",
+        "斯洛伐克语": "斯洛伐克语",
+        "斯洛文尼亚语": "斯洛文尼亚语",
+        "瑞典语": "瑞典语",
+    },
+}
+
+# Default language for each model
+default_languages = {
+    "SenseVoiceSmall": "en",
+    "Whisper": "en",
+    "Paraformer-zh": "zh",
+    "Paraformer-en": "en",
+    "Fun-ASR-Nano": "中文",
+    "Fun-ASR-MLT-Nano": "中文",
 }
 
 # Loaded model cache
 loaded_models = {}
+loaded_vad = None
 
 
-def get_model(model_name):
+def get_asr_model(model_name, device):
     if model_name not in loaded_models:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
         if model_name == "SenseVoiceSmall":
             loaded_models[model_name] = AutoModel(
                 model=asr_models[model_name],
@@ -91,14 +163,53 @@ def get_model(model_name):
                 device=device,
                 disable_update=True,
             )
+        elif model_name in ["Fun-ASR-Nano", "Fun-ASR-MLT-Nano"]:
+            loaded_models[model_name] = AutoModel(
+                model=asr_models[model_name],
+                trust_remote_code=True,
+                remote_code="./model.py",
+                device=device,
+                hub="ms",
+                disable_update=True,
+            )
     return loaded_models[model_name]
+
+
+def get_vad_model(
+    smooth_window_size,
+    speech_threshold,
+    min_speech_frame,
+    max_speech_frame,
+    min_silence_frame,
+    merge_silence_frame,
+    extend_speech_frame,
+):
+    global loaded_vad
+    vad_config = FireRedVadConfig(
+        use_gpu=False,
+        smooth_window_size=smooth_window_size,
+        speech_threshold=speech_threshold,
+        min_speech_frame=min_speech_frame,
+        max_speech_frame=max_speech_frame,
+        min_silence_frame=min_silence_frame,
+        merge_silence_frame=merge_silence_frame,
+        extend_speech_frame=extend_speech_frame,
+        chunk_max_frame=30000,
+    )
+    if loaded_vad is None:
+        loaded_vad = FireRedVad.from_pretrained(
+            "./FireRedVAD",
+            vad_config,
+        )
+    else:
+        loaded_vad.config = vad_config
+    return loaded_vad
 
 
 def open_page():
     webbrowser.open_new_tab("http://127.0.0.1:7860")
 
 
-# Define timestamp format
 def reformat_time(second):
     hours = int(second // 3600)
     minutes = int((second % 3600) // 60)
@@ -107,16 +218,9 @@ def reformat_time(second):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-# Convert speech recognition text to SRT subtitle file
 def write_srt(srt_result, srt_file):
     with Path.open(srt_file, "w", encoding="utf-8") as f:
         f.writelines(srt_result)
-
-
-# 将语音识别得到的文本转写为TXT subtitle file
-def write_txt(txt_result, txt_file):
-    with Path.open(txt_file, "w", encoding="utf-8") as f:
-        f.writelines(txt_result)
 
 
 def cut_wav_to_ndarray(wav_path: str, start_s: float, end_s: float) -> np.ndarray:
@@ -130,198 +234,240 @@ def cut_wav_to_ndarray(wav_path: str, start_s: float, end_s: float) -> np.ndarra
         end_frame = max(start_frame + 1, int(end_s / 1000 * sr))
         frames = end_frame - start_frame
         f.seek(start_frame)
-        audio = f.read(frames, dtype="float32")  # read as float32
-    # if stereo, convert to mono
+        audio = f.read(frames, dtype="float32")
     if channels > 1:
-        audio = np.mean(audio, axis=1)  # take average
+        audio = np.mean(audio, axis=1)
     if sr != 16000:
-        # convert to tensor, resample, convert back NumPy
         audio_tensor = torch.tensor(audio)
         resampler = torchaudio.transforms.Resample(sr, 16000)
         audio = resampler(audio_tensor).numpy()
     return audio
 
 
-# def cut_wav_to_tensor(wav_path: str, start_s: float, end_s: float) -> torch.Tensor:
-#     if end_s <= start_s:
-#         raise ValueError("end_s must be > start_s")
-
-#     with sf.SoundFile(wav_path) as f:
-#         sr = f.samplerate
-#         start_frame = max(0, int(start_s / 1000 * sr))
-#         end_frame = max(start_frame + 1, int(end_s / 1000 * sr))
-#         frames = end_frame - start_frame
-#         f.seek(start_frame)
-#         audio = f.read(frames, dtype="float32")  # read as float32
-
-#     # Convert to tensor and resample to 16kHz
-#     audio_tensor = torch.tensor(audio)
-#     if sr != 16000:
-#         resampler = torchaudio.transforms.Resample(sr, 16000)
-#         audio_tensor = resampler(audio_tensor)
-
-#     return audio_tensor
+def extract_segment_tensor(
+    waveform: torch.Tensor, sample_rate: int, start: float, end: float
+) -> torch.Tensor:
+    start_sample = int(start * sample_rate)
+    end_sample = int(end * sample_rate)
+    return waveform[start_sample:end_sample]
 
 
-# model inference function
-def model_inference(input_wav, model_name, language, silence_threshold):
+def model_inference(
+    input_wav,
+    model_name,
+    language,
+    smooth_window_size,
+    speech_threshold,
+    min_speech_frame,
+    max_speech_frame,
+    min_silence_frame,
+    merge_silence_frame,
+    extend_speech_frame,
+):
     srt_file = Path(input_wav).with_suffix(".srt")
-    txt_file = Path(input_wav).with_suffix(".txt")
 
-    asr_model = get_model(model_name)
+    device = (
+        "cuda:0"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+    asr_model = get_asr_model(model_name, device)
 
-    selected_language = None
-    if model_name == "SenseVoiceSmall":
-        language_abbr = {
-            "auto": "auto",
-            "zh": "zh",
-            "en": "en",
-            "yue": "yue",
-            "ja": "ja",
-            "ko": "ko",
-            "nospeech": "nospeech",
-        }
-        selected_language = language_abbr.get(language, "auto")
-    elif model_name == "Whisper":
-        language_abbr = {
-            "auto": None,
-            "zh": "zh",
-            "en": "en",
-            "ja": "ja",
-        }
-        selected_language = language_abbr.get(language)
-    elif model_name == "Paraformer-zh":
-        language_abbr = {
-            "auto": "zh",
-            "zh": "zh",
-        }
-        selected_language = language_abbr.get(language, "zh")
-    elif model_name == "Paraformer-en":
-        language_abbr = {
-            "auto": "en",
-            "en": "en",
-        }
-        selected_language = language_abbr.get(language, "en")
-
-    # load VAD model
-    vad_model = AutoModel(
-        model=vad_model_dir,
-        vad_model_revision="v2.0.4",
-        device="cuda:0" if torch.cuda.is_available() else "cpu",
-        disable_update=True,
-        max_end_silence_time=silence_threshold,
+    selected_language = language_options[model_name].get(
+        language, default_languages[model_name]
     )
 
-    # use VAD model to process audio file
-    vad_res = vad_model.generate(
-        input=input_wav,
-        cache={},
-        max_single_segment_time=30000,
+    vad = get_vad_model(
+        smooth_window_size,
+        speech_threshold,
+        min_speech_frame,
+        max_speech_frame,
+        min_silence_frame,
+        merge_silence_frame,
+        extend_speech_frame,
     )
 
-    segments = vad_res[0]["value"]
+    wav_path = Path(input_wav).with_suffix(".wav")
+    convert_to_wav(input_wav, wav_path)
 
-    srt_result = ""
-    txt_result = []
-    data = []
-    srt_id = 1
+    if model_name in ["Fun-ASR-Nano", "Fun-ASR-MLT-Nano"]:
+        waveform, sample_rate = torchaudio.load(str(wav_path))
+        waveform = waveform.mean(dim=0)
+        result, probs = vad.detect(str(wav_path))
+        timestamps = result.get("timestamps", [])
 
-    for segment in segments:
-        start_time, end_time = segment
-        audio_temp = cut_wav_to_ndarray(input_wav, start_time, end_time)
+        srt_result = ""
+        data = []
+        srt_id = 1
 
-        cleaned_text = ""
-        if model_name == "SenseVoiceSmall":
+        for idx, (start, end) in enumerate(timestamps):
+            segment_tensor = extract_segment_tensor(waveform, sample_rate, start, end)
+
             res = asr_model.generate(
-                input=audio_temp,
+                input=[segment_tensor],
                 cache={},
+                batch_size=1,
                 language=selected_language,
-                use_itn=True,
-                batch_size_s=60,
-                merge_vad=True,
-                merge_length_s=15,
-                ban_emo_unk=False,
+                itn=True,
             )
-            cleaned_text = rich_transcription_postprocess(res[0]["text"])
-            cleaned_text = emoji.replace_emoji(cleaned_text, replace="")
-            if selected_language not in ["en", "ko"]:
-                cleaned_text = cleaned_text.replace(" ", "").strip()
-            cleaned_text = remove_trailing_punctuation(cleaned_text)
-        elif model_name == "Whisper":
-            prompt_dict = {
-                "auto": "",
-                "en": "Tom, There is a Chinese person among them.",
-                "zh": "我是一个台湾人，也是一个中国人。",
-                "ja": "その中に、一人の日本人がいます。誰だと思いますか？",
-            }
-            decodingoptions = {
-                "task": "transcribe",
-                "language": selected_language,
-                "beam_size": None,
-                "fp16": True,
-                "without_timestamps": True,
-                "prompt": prompt_dict.get(language, ""),
-            }
-            res = asr_model.generate(
-                input=audio_temp,
-                DecodingOptions=decodingoptions,
-                batch_size_s=0,
-            )
-            cleaned_text = res[0]["text"]
-            cleaned_text = remove_trailing_punctuation(cleaned_text)
-        elif model_name in ["Paraformer-zh", "Paraformer-en"]:
-            res = asr_model.generate(
-                input=audio_temp,
-                batch_size_s=300,
-                hotword="",
-            )
-            cleaned_text = res[0]["text"]
+            text = res[0]["text"]
+            if text.strip():
+                start_ms = start * 1000
+                end_ms = end * 1000
+                srt_result += (
+                    str(srt_id)
+                    + "\n"
+                    + reformat_time(start)
+                    + " --> "
+                    + reformat_time(end)
+                    + "\n"
+                    + text
+                    + "\n\n"
+                )
+                data.append(
+                    [
+                        str(srt_id),
+                        reformat_time(start),
+                        reformat_time(end),
+                        text,
+                    ]
+                )
+                srt_id += 1
 
-        srt_result += (
-            str(srt_id)
-            + "\n"
-            + str(reformat_time(start_time / 1000))
-            + " --> "
-            + str(reformat_time(end_time / 1000))
-            + "\n"
-            + cleaned_text
-            + "\n\n"
-        )
-        txt_result.append(cleaned_text)
-        data.append([str(srt_id), reformat_time(start_time / 1000), reformat_time(end_time / 1000), cleaned_text])
-        srt_id += 1
+        del waveform
+        if wav_path.exists():
+            wav_path.unlink()
+    else:
+        result, probs = vad.detect(str(wav_path))
+        timestamps = result.get("timestamps", [])
+
+        srt_result = ""
+        data = []
+        srt_id = 1
+
+        for start, end in timestamps:
+            start_ms = start * 1000
+            end_ms = end * 1000
+            audio_temp = cut_wav_to_ndarray(input_wav, start_ms, end_ms)
+
+            cleaned_text = ""
+            if model_name == "SenseVoiceSmall":
+                res = asr_model.generate(
+                    input=audio_temp,
+                    cache={},
+                    language=selected_language,
+                    use_itn=True,
+                    batch_size_s=60,
+                    merge_vad=True,
+                    merge_length_s=15,
+                    ban_emo_unk=False,
+                )
+                cleaned_text = rich_transcription_postprocess(res[0]["text"])
+                cleaned_text = emoji.replace_emoji(cleaned_text, replace="")
+                if selected_language not in ["en", "ko"]:
+                    cleaned_text = cleaned_text.replace(" ", "").strip()
+                cleaned_text = remove_trailing_punctuation(cleaned_text)
+            elif model_name == "Whisper":
+                prompt_dict = {
+                    "en": "Tom, There is a Chinese person among them.",
+                    "zh": "我是一个台湾人，也是一个中国人。",
+                    "ja": "その中に、一人の日本人がいます。誰だと思いますか？",
+                }
+                decodingoptions = {
+                    "task": "transcribe",
+                    "language": selected_language,
+                    "beam_size": None,
+                    "fp16": True,
+                    "without_timestamps": True,
+                    "prompt": prompt_dict.get(language, ""),
+                }
+                res = asr_model.generate(
+                    input=audio_temp,
+                    DecodingOptions=decodingoptions,
+                    batch_size_s=0,
+                )
+                cleaned_text = res[0]["text"]
+                cleaned_text = remove_trailing_punctuation(cleaned_text)
+            elif model_name in ["Paraformer-zh", "Paraformer-en"]:
+                res = asr_model.generate(
+                    input=audio_temp,
+                    batch_size_s=300,
+                    hotword="",
+                )
+                cleaned_text = res[0]["text"]
+
+            srt_result += (
+                str(srt_id)
+                + "\n"
+                + reformat_time(start)
+                + " --> "
+                + reformat_time(end)
+                + "\n"
+                + cleaned_text
+                + "\n\n"
+            )
+            data.append(
+                [
+                    str(srt_id),
+                    reformat_time(start),
+                    reformat_time(end),
+                    cleaned_text,
+                ]
+            )
+            srt_id += 1
+
+        if wav_path.exists():
+            wav_path.unlink()
 
     write_srt(srt_result, srt_file)
-    write_txt(txt_result, txt_file)
     gr.Info(_("transcript_completed", filename=Path(input_wav).name))
     return data
 
 
-# save subtitle files to selected folder
 def save_file(audio_inputs, path_input_text):
     if not Path(path_input_text).is_dir() or path_input_text.strip() == "":
         gr.Warning(_("invalid_folder"))
     else:
         try:
             srt_file = Path(audio_inputs).with_suffix(".srt")
-            txt_file = Path(audio_inputs).with_suffix(".txt")
             shutil.copy2(srt_file, path_input_text)
-            shutil.copy2(txt_file, path_input_text)
-            gr.Info(_("files_saved", srt_file=srt_file.name, txt_file=txt_file.name))
+            gr.Info(_("files_saved", srt_file=srt_file.name))
         except Exception as e:
             gr.Warning(_("save_error", error=e))
 
 
-# multi-file transcription
-def multi_file_asr(multi_files_upload, model_name, language, silence_threshold):
+def multi_file_asr(
+    multi_files_upload,
+    model_name,
+    language,
+    smooth_window_size,
+    speech_threshold,
+    min_speech_frame,
+    max_speech_frame,
+    min_silence_frame,
+    merge_silence_frame,
+    extend_speech_frame,
+):
     num = 0
     for audio_inputs in multi_files_upload:
-        model_inference(audio_inputs, model_name, language, silence_threshold)
+        model_inference(
+            audio_inputs,
+            model_name,
+            language,
+            smooth_window_size,
+            speech_threshold,
+            min_speech_frame,
+            max_speech_frame,
+            min_silence_frame,
+            merge_silence_frame,
+            extend_speech_frame,
+        )
         num += 1
     gr.Info(_("total_transcriptions", num=num))
 
 
-# save subtitle files to selected folder
 def save_multi_srt(multi_files_upload, path_input_text):
     for audio_inputs in multi_files_upload:
         save_file(audio_inputs, path_input_text)
@@ -330,23 +476,31 @@ def save_multi_srt(multi_files_upload, path_input_text):
 def get_html_content():
     return f"""
 <div>
-    <h2 style="font-size: 22px;margin-left: 0px;">{_("title")}</h2>
-    <p style="font-size: 18px;margin-left: 20px;">{_("description")}</p>
-    <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">{_("github_links")}</a>
-    <a href="https://github.com/jianchang512/sense-api" target="_blank">{_("sense_api_repo")}</a>
+    <h2 style="font-size: 22px;margin-left: 0px;">{"FireRed VAD + ASR SRT Generator"}</h2>
+    <p style="font-size: 18px;margin-left: 20px;">{"Integrated FireRedVAD with SenseVoice/Whisper/Paraformer/Fun-ASR for subtitle generation"}</p>
+    <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">SenseVoice</a>
+    <a href="https://github.com/FunAudioLLM/Fun-ASR" target="_blank">Fun-ASR</a>
+    <a href="https://github.com/FireRedTeam/FireRedVAD" target="_blank">FireRedVAD</a>
 </div>
 """
 
 
 def update_language_options(model_name):
-    return gr.Dropdown(choices=language_options[model_name], value="auto", label=_("spoken_language"))
+    choices = []
+    for display_key, asr_value in language_options[model_name].items():
+        translated = translator.t("language_names." + display_key)
+        if translated == "language_names." + display_key:
+            translated = display_key
+        choices.append((translated, display_key))
+    return gr.Dropdown(
+        choices=choices,
+        value=default_languages[model_name],
+        label=_("spoken_language"),
+    )
 
 
 def launch():
-    # translator initialized on module import
-
-    with gr.Blocks(title="SenseVoice & Whisper WebUI") as demo:
-        # page title and introduction
+    with gr.Blocks(title="FunASR&SenseVoice SRT Generator") as demo:
         gr.HTML(get_html_content())
 
         with gr.Column():
@@ -356,24 +510,101 @@ def launch():
                     "Whisper",
                     "Paraformer-zh",
                     "Paraformer-en",
+                    "Fun-ASR-Nano",
+                    "Fun-ASR-MLT-Nano",
                 ],
                 value="SenseVoiceSmall",
                 label=_("select_model"),
             )
-            with gr.Accordion(_("configuration")), gr.Row():
+            with gr.Accordion(_("configuration"), open=True), gr.Row():
                 language_inputs = gr.Dropdown(
-                    choices=language_options["SenseVoiceSmall"], value="auto", label=_("spoken_language")
+                    choices=[
+                        (translator.t("language_names." + k), k)
+                        for k in language_options["SenseVoiceSmall"]
+                    ],
+                    value=default_languages["SenseVoiceSmall"],
+                    label=_("spoken_language"),
                 )
-                end_silence_time = gr.Slider(
-                    label=_("silence_threshold"), minimum=0, maximum=6000, step=50, value=800, interactive=True
+
+        with gr.Accordion(_("fireredvad_params"), open=False):
+            with gr.Row():
+                vad_smooth_window_size = gr.Slider(
+                    label=_("vad_smooth_window_size"),
+                    minimum=1,
+                    maximum=21,
+                    step=1,
+                    value=5,
+                    interactive=True,
+                    info=_("vad_smooth_window_size_info"),
                 )
+                vad_speech_threshold = gr.Slider(
+                    label=_("vad_speech_threshold"),
+                    minimum=0.1,
+                    maximum=0.9,
+                    step=0.05,
+                    value=0.4,
+                    interactive=True,
+                    info=_("vad_speech_threshold_info"),
+                )
+            with gr.Row():
+                vad_min_speech_frame = gr.Slider(
+                    label=_("vad_min_speech_frame"),
+                    minimum=1,
+                    maximum=100,
+                    step=1,
+                    value=20,
+                    interactive=True,
+                    info=_("vad_min_speech_frame_info"),
+                )
+                vad_max_speech_frame = gr.Slider(
+                    label=_("vad_max_speech_frame"),
+                    minimum=100,
+                    maximum=5000,
+                    step=50,
+                    value=2000,
+                    interactive=True,
+                    info=_("vad_max_speech_frame_info"),
+                )
+                vad_min_silence_frame = gr.Slider(
+                    label=_("vad_min_silence_frame"),
+                    minimum=1,
+                    maximum=100,
+                    step=1,
+                    value=20,
+                    interactive=True,
+                    info=_("vad_min_silence_frame_info"),
+                )
+            with gr.Row():
+                vad_merge_silence_frame = gr.Slider(
+                    label=_("vad_merge_silence_frame"),
+                    minimum=0,
+                    maximum=50,
+                    step=1,
+                    value=0,
+                    interactive=True,
+                    info=_("vad_merge_silence_frame_info"),
+                )
+                vad_extend_speech_frame = gr.Slider(
+                    label=_("vad_extend_speech_frame"),
+                    minimum=0,
+                    maximum=50,
+                    step=1,
+                    value=0,
+                    interactive=True,
+                    info=_("vad_extend_speech_frame_info"),
+                )
+
         with gr.Tab(label=_("single_file_transcription")), gr.Column():
             audio_inputs = gr.Audio(label=_("upload_audio"), type="filepath")
 
             with gr.Row():
                 stre_btn = gr.Button(_("start_transcription"), variant="primary")
                 save_btn = gr.Button(_("save_subtitles"), variant="primary")
-            path_input_text = gr.Text(label=_("save_path"), interactive=True, placeholder=_("save_path_placeholder"))
+            path_input_text = gr.Text(
+                label=_("save_path"),
+                interactive=True,
+                placeholder=_("save_path_placeholder"),
+            )
             output_table = gr.Dataframe(
                 headers=[
                     _("table_headers.no"),
@@ -384,11 +615,26 @@ def launch():
                 label=_("transcription_results"),
             )
 
-        model_selector.change(update_language_options, inputs=model_selector, outputs=language_inputs)
+        model_selector.change(
+            update_language_options,
+            inputs=model_selector,
+            outputs=language_inputs,
+        )
 
         stre_btn.click(
             model_inference,
-            inputs=[audio_inputs, model_selector, language_inputs, end_silence_time],
+            inputs=[
+                audio_inputs,
+                model_selector,
+                language_inputs,
+                vad_smooth_window_size,
+                vad_speech_threshold,
+                vad_min_speech_frame,
+                vad_max_speech_frame,
+                vad_min_silence_frame,
+                vad_merge_silence_frame,
+                vad_extend_speech_frame,
+            ],
             outputs=output_table,
         )
 
@@ -404,18 +650,39 @@ def launch():
                 stre_btn_multi = gr.Button(_("start_transcription"), variant="primary")
                 save_btn_multi = gr.Button(_("save_subtitles"), variant="primary")
             path_input_text_multi = gr.Text(
-                label=_("save_path"), interactive=True, placeholder=_("save_path_placeholder")
+                label=_("save_path"),
+                interactive=True,
+                placeholder=_("save_path_placeholder"),
             )
 
-        model_selector.change(update_language_options, inputs=model_selector, outputs=language_inputs)
+        model_selector.change(
+            update_language_options,
+            inputs=model_selector,
+            outputs=language_inputs,
+        )
 
         stre_btn_multi.click(
             multi_file_asr,
-            inputs=[multi_files_upload, model_selector, language_inputs, end_silence_time],
+            inputs=[
+                multi_files_upload,
+                model_selector,
+                language_inputs,
+                vad_smooth_window_size,
+                vad_speech_threshold,
+                vad_min_speech_frame,
+                vad_max_speech_frame,
+                vad_min_silence_frame,
+                vad_merge_silence_frame,
+                vad_extend_speech_frame,
+            ],
             outputs=[],
         )
 
-        save_btn_multi.click(save_multi_srt, inputs=[multi_files_upload, path_input_text_multi], outputs=[])
+        save_btn_multi.click(
+            save_multi_srt,
+            inputs=[multi_files_upload, path_input_text_multi],
+            outputs=[],
+        )
 
     threading.Thread(target=open_page).start()
     demo.launch()
