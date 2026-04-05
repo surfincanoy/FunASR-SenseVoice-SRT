@@ -1,20 +1,18 @@
 import shutil
 import string
-import subprocess
 import threading
 import webbrowser
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import emoji
 import gradio as gr
 import numpy as np
 import soundfile as sf
 import torch
-import torchaudio
 from fireredvad import FireRedVad, FireRedVadConfig
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
+from pydub import AudioSegment
 from utils.translator import _, initialize_from_main, translator
 
 if __name__ == "__main__":
@@ -28,26 +26,21 @@ def remove_trailing_punctuation(text: str) -> str:
     return text
 
 
-def convert_to_wav(input_path: str, output_path: Path) -> None:
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            input_path,
-            "-ar",
-            "16000",
-            "-ac",
-            "1",
-            "-acodec",
-            "pcm_s16le",
-            "-f",
-            "wav",
-            str(output_path),
-        ],
-        check=True,
-        capture_output=True,
-    )
+def convert_to_wav(input_path: str, output_path: Path) -> str:
+    input_path_obj = Path(input_path)
+    if input_path_obj.suffix.lower() == ".wav":
+        try:
+            with sf.SoundFile(input_path) as f:
+                if f.samplerate == 16000 and f.channels == 1:
+                    return input_path  # 直接使用原文件
+        except Exception:
+            pass
+
+    # 需要转换时，生成临时文件
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_frame_rate(16000).set_channels(1)
+    audio.export(str(output_path), format="wav")
+    return str(output_path)
 
 
 # ASR model paths
@@ -238,9 +231,8 @@ def cut_wav_to_ndarray(wav_path: str, start_s: float, end_s: float) -> np.ndarra
     if channels > 1:
         audio = np.mean(audio, axis=1)
     if sr != 16000:
-        audio_tensor = torch.tensor(audio)
-        resampler = torchaudio.transforms.Resample(sr, 16000)
-        audio = resampler(audio_tensor).numpy()
+        num_samples = int(len(audio) * 16000 / sr)
+        audio = scipy_resample(audio, num_samples)
     return audio
 
 
@@ -290,12 +282,14 @@ def model_inference(
     )
 
     wav_path = Path(input_wav).with_suffix(".wav")
-    convert_to_wav(input_wav, wav_path)
+    wav_file = convert_to_wav(input_wav, wav_path)
 
     if model_name in ["Fun-ASR-Nano", "Fun-ASR-MLT-Nano"]:
-        waveform, sample_rate = torchaudio.load(str(wav_path))
-        waveform = waveform.mean(dim=0)
-        result, probs = vad.detect(str(wav_path))
+        waveform_np, sample_rate = sf.read(wav_file, dtype="float32")
+        if waveform_np.ndim > 1:
+            waveform_np = np.mean(waveform_np, axis=1)
+        waveform = torch.from_numpy(waveform_np)
+        result, probs = vad.detect(wav_file)
         timestamps = result.get("timestamps", [])
 
         srt_result = ""
@@ -337,10 +331,8 @@ def model_inference(
                 srt_id += 1
 
         del waveform
-        if wav_path.exists():
-            wav_path.unlink()
     else:
-        result, probs = vad.detect(str(wav_path))
+        result, probs = vad.detect(wav_file)
         timestamps = result.get("timestamps", [])
 
         srt_result = ""
@@ -417,9 +409,6 @@ def model_inference(
                 ]
             )
             srt_id += 1
-
-        if wav_path.exists():
-            wav_path.unlink()
 
     write_srt(srt_result, srt_file)
     gr.Info(_("transcript_completed", filename=Path(input_wav).name))
