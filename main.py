@@ -13,6 +13,7 @@ from fireredvad import FireRedVad, FireRedVadConfig
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 from pydub import AudioSegment
+from scipy.signal import resample as scipy_resample
 from utils.translator import _, initialize_from_main, translator
 
 if __name__ == "__main__":
