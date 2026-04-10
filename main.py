@@ -367,6 +367,7 @@ def model_inference(
                 res = asr_model.generate(
                     input=audio_temp,
                     cache={},
+                    param_dict={"use_punc": True},
                     language=selected_language,
                     use_itn=True,
                     batch_size_s=60,
@@ -464,7 +465,7 @@ def model_inference(
 
     write_srt(srt_result, srt_file)
     with open(txt_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(txt_lines))
+        f.write("".join(txt_lines))
     gr.Info(_("transcript_completed", filename=Path(input_wav).name))
     return data
 
@@ -576,7 +577,7 @@ def launch():
                     label=_("spoken_language"),
                 )
                 remove_trailing_punct = gr.Checkbox(
-                    value=True,
+                    value=False,
                     label=_("remove_trailing_punct"),
                     info=_("remove_trailing_punct_info"),
                 )
@@ -625,7 +626,7 @@ def launch():
                     minimum=1,
                     maximum=200,
                     step=1,
-                    value=20,
+                    value=100,
                     interactive=True,
                     info=_("vad_min_silence_frame_info"),
                 )
