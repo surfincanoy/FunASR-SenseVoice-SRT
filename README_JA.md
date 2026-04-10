@@ -149,13 +149,6 @@ FireRed/
 - [OpenAI Whisper](https://github.com/openai/whisper) - 音声認識
 - [Gradio](https://gradio.app/) - Webインターフェースフレームワーク
 
+## 📸 インターフェースプレビュー
 
----
-
-<div align="center">
-
-**❤️ 音声認識コミュニティのために作られました**
-
-[![Star History Chart](https://api.star-history.com/svg?repos=FunAudioLLM/SenseVoice&type=Date)](https://star-history.com/#FunAudioLLM/SenseVoice&Date)
-
-</div>
+![メイン画面](main.png)

@@ -149,13 +149,6 @@ This project is open-sourced under the MIT License - see the [LICENSE](LICENSE) 
 - [OpenAI Whisper](https://github.com/openai/whisper) - Speech Recognition
 - [Gradio](https://gradio.app/) - Web Interface Framework
 
+## 📸 Interface Preview
 
----
-
-<div align="center">
-
-**❤️ Crafted for the Speech Recognition Community**
-
-[![Star History Chart](https://api.star-history.com/svg?repos=FunAudioLLM/SenseVoice&type=Date)](https://star-history.com/#FunAudioLLM/SenseVoice&Date)
-
-</div>
+![Main Interface](main.png)
