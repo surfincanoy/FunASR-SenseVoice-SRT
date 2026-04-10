@@ -23,7 +23,7 @@ if __name__ == "__main__":
 def remove_trailing_punctuation(text: str) -> str:
     trailing_punct = string.punctuation + "。，、；：！？.?!"
     text = text.rstrip(trailing_punct)
-    text = text.rstrip()
+    text = text.rstrip() + " "
     return text
 
 
@@ -44,14 +44,29 @@ def convert_to_wav(input_path: str, output_path: Path) -> str:
     return str(output_path)
 
 
-# ASR model paths
+# ASR model paths - prioritize local models
+LOCAL_MODELS_DIR = Path(".")
+FUN_AUDIO_LLM_DIR = LOCAL_MODELS_DIR / "FunAudioLLM"
+IIC_DIR = LOCAL_MODELS_DIR / "iic"
+
+
+def get_local_model_path(relative_path: str) -> str:
+    """Check if local model exists, return local path or HuggingFace ID"""
+    local_path = LOCAL_MODELS_DIR / relative_path
+    if local_path.exists():
+        return str(local_path)
+    return relative_path
+
+
 asr_models = {
-    "SenseVoiceSmall": "iic/SenseVoiceSmall",
-    "Whisper": "iic/Whisper-large-v3-turbo",
+    "SenseVoiceSmall": get_local_model_path("iic/SenseVoiceSmall"),
+    "Whisper": get_local_model_path("iic/Whisper-large-v3-turbo"),
     "Paraformer-zh": "paraformer-zh",
-    "Paraformer-en": "iic/speech_paraformer_asr-en-16k-vocab4199-pytorch",
-    "Fun-ASR-Nano": "FunAudioLLM/Fun-ASR-Nano-2512",
-    "Fun-ASR-MLT-Nano": "FunAudioLLM/Fun-ASR-MLT-Nano-2512",
+    "Paraformer-en": get_local_model_path(
+        "iic/speech_paraformer_asr-en-16k-vocab4199-pytorch"
+    ),
+    "Fun-ASR-Nano": get_local_model_path("FunAudioLLM/Fun-ASR-Nano-2512"),
+    "Fun-ASR-MLT-Nano": get_local_model_path("FunAudioLLM/Fun-ASR-MLT-Nano-2512"),
 }
 
 # Language options: {display_key: asr_value}
@@ -128,7 +143,6 @@ default_languages = {
 
 # Loaded model cache
 loaded_models = {}
-loaded_vad = None
 
 
 def get_asr_model(model_name, device):
@@ -178,7 +192,6 @@ def get_vad_model(
     merge_silence_frame,
     extend_speech_frame,
 ):
-    global loaded_vad
     vad_config = FireRedVadConfig(
         use_gpu=False,
         smooth_window_size=smooth_window_size,
@@ -190,14 +203,11 @@ def get_vad_model(
         extend_speech_frame=extend_speech_frame,
         chunk_max_frame=30000,
     )
-    if loaded_vad is None:
-        loaded_vad = FireRedVad.from_pretrained(
-            "./FireRedVAD",
-            vad_config,
-        )
-    else:
-        loaded_vad.config = vad_config
-    return loaded_vad
+    vad = FireRedVad.from_pretrained(
+        "./FireRedVAD",
+        vad_config,
+    )
+    return vad
 
 
 def open_page():
@@ -249,6 +259,7 @@ def model_inference(
     input_wav,
     model_name,
     language,
+    remove_trailing_punct,
     smooth_window_size,
     speech_threshold,
     min_speech_frame,
@@ -258,6 +269,7 @@ def model_inference(
     extend_speech_frame,
 ):
     srt_file = Path(input_wav).with_suffix(".srt")
+    txt_file = Path(input_wav).with_suffix(".txt")
 
     device = (
         "cuda:0"
@@ -294,6 +306,7 @@ def model_inference(
         timestamps = result.get("timestamps", [])
 
         srt_result = ""
+        txt_lines = []
         data = []
         srt_id = 1
 
@@ -308,6 +321,8 @@ def model_inference(
                 itn=True,
             )
             text = res[0]["text"]
+            if remove_trailing_punct:
+                text = remove_trailing_punctuation(text)
             if text.strip():
                 start_ms = start * 1000
                 end_ms = end * 1000
@@ -321,6 +336,7 @@ def model_inference(
                     + text
                     + "\n\n"
                 )
+                txt_lines.append(text)
                 data.append(
                     [
                         str(srt_id),
@@ -337,6 +353,7 @@ def model_inference(
         timestamps = result.get("timestamps", [])
 
         srt_result = ""
+        txt_lines = []
         data = []
         srt_id = 1
 
@@ -361,7 +378,39 @@ def model_inference(
                 cleaned_text = emoji.replace_emoji(cleaned_text, replace="")
                 if selected_language not in ["en", "ko"]:
                     cleaned_text = cleaned_text.replace(" ", "").strip()
-                cleaned_text = remove_trailing_punctuation(cleaned_text)
+                if remove_trailing_punct:
+                    cleaned_text = remove_trailing_punctuation(cleaned_text)
+            elif model_name == "Whisper":
+                prompt_dict = {
+                    "en": "Tom, There is a Chinese person among them.",
+                    "zh": "我是一个台湾人，也是一个中国人。",
+                    "ja": "その中に、一人の日本人がいます。誰だと思いますか？",
+                }
+                decodingoptions = {
+                    "task": "transcribe",
+                    "language": selected_language,
+                    "beam_size": None,
+                    "fp16": True,
+                    "without_timestamps": True,
+                    "prompt": prompt_dict.get(language, ""),
+                }
+                res = asr_model.generate(
+                    input=audio_temp,
+                    DecodingOptions=decodingoptions,
+                    batch_size_s=0,
+                )
+                cleaned_text = res[0]["text"]
+                if remove_trailing_punct:
+                    cleaned_text = remove_trailing_punctuation(cleaned_text)
+            elif model_name in ["Paraformer-zh", "Paraformer-en"]:
+                res = asr_model.generate(
+                    input=audio_temp,
+                    batch_size_s=300,
+                    hotword="",
+                )
+                cleaned_text = res[0]["text"]
+                if remove_trailing_punct:
+                    cleaned_text = remove_trailing_punctuation(cleaned_text)
             elif model_name == "Whisper":
                 prompt_dict = {
                     "en": "Tom, There is a Chinese person among them.",
@@ -390,6 +439,7 @@ def model_inference(
                     hotword="",
                 )
                 cleaned_text = res[0]["text"]
+                cleaned_text = remove_trailing_punctuation(cleaned_text)
 
             srt_result += (
                 str(srt_id)
@@ -401,6 +451,7 @@ def model_inference(
                 + cleaned_text
                 + "\n\n"
             )
+            txt_lines.append(cleaned_text)
             data.append(
                 [
                     str(srt_id),
@@ -412,6 +463,8 @@ def model_inference(
             srt_id += 1
 
     write_srt(srt_result, srt_file)
+    with open(txt_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(txt_lines))
     gr.Info(_("transcript_completed", filename=Path(input_wav).name))
     return data
 
@@ -422,8 +475,10 @@ def save_file(audio_inputs, path_input_text):
     else:
         try:
             srt_file = Path(audio_inputs).with_suffix(".srt")
+            txt_file = Path(audio_inputs).with_suffix(".txt")
             shutil.copy2(srt_file, path_input_text)
-            gr.Info(_("files_saved", srt_file=srt_file.name))
+            shutil.copy2(txt_file, path_input_text)
+            gr.Info(_("files_saved", srt_file=srt_file.name, txt_file=txt_file.name))
         except Exception as e:
             gr.Warning(_("save_error", error=e))
 
@@ -432,6 +487,7 @@ def multi_file_asr(
     multi_files_upload,
     model_name,
     language,
+    remove_trailing_punct,
     smooth_window_size,
     speech_threshold,
     min_speech_frame,
@@ -446,6 +502,7 @@ def multi_file_asr(
             audio_inputs,
             model_name,
             language,
+            remove_trailing_punct,
             smooth_window_size,
             speech_threshold,
             min_speech_frame,
@@ -490,7 +547,10 @@ def update_language_options(model_name):
 
 
 def launch():
-    with gr.Blocks(title="FunASR&SenseVoice SRT Generator") as demo:
+    with gr.Blocks(
+        title="FunASR&SenseVoice SRT Generator",
+        theme=gr.themes.Default(primary_hue="green", secondary_hue="blue"),
+    ) as demo:
         gr.HTML(get_html_content())
 
         with gr.Column():
@@ -514,6 +574,11 @@ def launch():
                     ],
                     value=default_languages["SenseVoiceSmall"],
                     label=_("spoken_language"),
+                )
+                remove_trailing_punct = gr.Checkbox(
+                    value=True,
+                    label=_("remove_trailing_punct"),
+                    info=_("remove_trailing_punct_info"),
                 )
 
         with gr.Accordion(_("fireredvad_params"), open=False):
@@ -558,7 +623,7 @@ def launch():
                 vad_min_silence_frame = gr.Slider(
                     label=_("vad_min_silence_frame"),
                     minimum=1,
-                    maximum=100,
+                    maximum=200,
                     step=1,
                     value=20,
                     interactive=True,
@@ -617,6 +682,7 @@ def launch():
                 audio_inputs,
                 model_selector,
                 language_inputs,
+                remove_trailing_punct,
                 vad_smooth_window_size,
                 vad_speech_threshold,
                 vad_min_speech_frame,
@@ -657,6 +723,7 @@ def launch():
                 multi_files_upload,
                 model_selector,
                 language_inputs,
+                remove_trailing_punct,
                 vad_smooth_window_size,
                 vad_speech_threshold,
                 vad_min_speech_frame,
