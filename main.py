@@ -1,3 +1,4 @@
+import gc
 import shutil
 import string
 import threading
@@ -143,6 +144,20 @@ default_languages = {
 
 # Loaded model cache
 loaded_models = {}
+
+
+def clear_model_cache():
+    """清理已加载的模型显存"""
+    global loaded_models
+    for model_name in list(loaded_models.keys()):
+        try:
+            del loaded_models[model_name]
+        except Exception:
+            pass
+    loaded_models.clear()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
 
 
 def get_asr_model(model_name, device):
@@ -305,27 +320,30 @@ def model_inference(
         result, probs = vad.detect(wav_file)
         timestamps = result.get("timestamps", [])
 
+        all_segments = [
+            extract_segment_tensor(waveform, sample_rate, start, end)
+            for start, end in timestamps
+        ]
+
+        res = asr_model.generate(
+            input=all_segments,
+            cache={},
+            batch_size=1,
+            language=selected_language,
+            itn=True,
+        )
+
         srt_result = ""
         txt_lines = []
         data = []
         srt_id = 1
 
         for idx, (start, end) in enumerate(timestamps):
-            segment_tensor = extract_segment_tensor(waveform, sample_rate, start, end)
-
-            res = asr_model.generate(
-                input=[segment_tensor],
-                cache={},
-                batch_size=1,
-                language=selected_language,
-                itn=True,
-            )
-            text = res[0]["text"]
+            text = res[idx]["text"]
+            text = text.strip()
             if remove_trailing_punct:
                 text = remove_trailing_punctuation(text)
-            if text.strip():
-                start_ms = start * 1000
-                end_ms = end * 1000
+            if text:
                 srt_result += (
                     str(srt_id)
                     + "\n"
@@ -352,15 +370,19 @@ def model_inference(
         result, probs = vad.detect(wav_file)
         timestamps = result.get("timestamps", [])
 
+        audio_full, sr = sf.read(wav_file, dtype="float32")
+        if audio_full.ndim > 1:
+            audio_full = np.mean(audio_full, axis=1)
+
         srt_result = ""
         txt_lines = []
         data = []
         srt_id = 1
 
         for start, end in timestamps:
-            start_ms = start * 1000
-            end_ms = end * 1000
-            audio_temp = cut_wav_to_ndarray(input_wav, start_ms, end_ms)
+            start_sample = int(start * sr)
+            end_sample = int(end * sr)
+            audio_temp = audio_full[start_sample:end_sample]
 
             cleaned_text = ""
             if model_name == "SenseVoiceSmall":
@@ -432,7 +454,8 @@ def model_inference(
                     batch_size_s=0,
                 )
                 cleaned_text = res[0]["text"]
-                cleaned_text = remove_trailing_punctuation(cleaned_text)
+                if remove_trailing_punct:
+                    cleaned_text = remove_trailing_punctuation(cleaned_text)
             elif model_name in ["Paraformer-zh", "Paraformer-en"]:
                 res = asr_model.generate(
                     input=audio_temp,
@@ -440,7 +463,8 @@ def model_inference(
                     hotword="",
                 )
                 cleaned_text = res[0]["text"]
-                cleaned_text = remove_trailing_punctuation(cleaned_text)
+                if remove_trailing_punct:
+                    cleaned_text = remove_trailing_punctuation(cleaned_text)
 
             srt_result += (
                 str(srt_id)
@@ -677,7 +701,16 @@ def launch():
             outputs=language_inputs,
         )
 
+        model_selector.change(
+            clear_model_cache,
+            inputs=[],
+            outputs=[],
+        )
+
         stre_btn.click(
+            lambda: gr.update(interactive=False),
+            outputs=stre_btn,
+        ).then(
             model_inference,
             inputs=[
                 audio_inputs,
@@ -693,6 +726,9 @@ def launch():
                 vad_extend_speech_frame,
             ],
             outputs=output_table,
+        ).then(
+            lambda: gr.update(interactive=True),
+            outputs=stre_btn,
         )
 
         save_btn.click(save_file, inputs=[audio_inputs, path_input_text], outputs=[])
@@ -718,7 +754,16 @@ def launch():
             outputs=language_inputs,
         )
 
+        model_selector.change(
+            clear_model_cache,
+            inputs=[],
+            outputs=[],
+        )
+
         stre_btn_multi.click(
+            lambda: gr.update(interactive=False),
+            outputs=stre_btn_multi,
+        ).then(
             multi_file_asr,
             inputs=[
                 multi_files_upload,
@@ -734,6 +779,9 @@ def launch():
                 vad_extend_speech_frame,
             ],
             outputs=[],
+        ).then(
+            lambda: gr.update(interactive=True),
+            outputs=stre_btn_multi,
         )
 
         save_btn_multi.click(
