@@ -275,6 +275,8 @@ def model_inference(
     model_name,
     language,
     remove_trailing_punct,
+    output_srt,
+    output_txt,
     smooth_window_size,
     speech_threshold,
     min_speech_frame,
@@ -283,6 +285,10 @@ def model_inference(
     merge_silence_frame,
     extend_speech_frame,
 ):
+    if input_wav is None or input_wav == "":
+        gr.Warning(_("please_upload_audio_first"))
+        return []
+
     srt_file = Path(input_wav).with_suffix(".srt")
     txt_file = Path(input_wav).with_suffix(".txt")
 
@@ -494,16 +500,19 @@ def model_inference(
     return data
 
 
-def save_file(audio_inputs, path_input_text):
+def save_file(audio_inputs, output_srt, output_txt, path_input_text):
     if not Path(path_input_text).is_dir() or path_input_text.strip() == "":
         gr.Warning(_("invalid_folder"))
     else:
         try:
             srt_file = Path(audio_inputs).with_suffix(".srt")
             txt_file = Path(audio_inputs).with_suffix(".txt")
-            shutil.copy2(srt_file, path_input_text)
-            shutil.copy2(txt_file, path_input_text)
-            gr.Info(_("files_saved", srt_file=srt_file.name, txt_file=txt_file.name))
+            if output_srt and srt_file.exists():
+                shutil.copy2(srt_file, path_input_text)
+                gr.Info(_("files_saved", srt_file=srt_file.name))
+            if output_txt and txt_file.exists():
+                shutil.copy2(txt_file, path_input_text)
+                gr.Info(_("files_saved", txt_file=txt_file.name))
         except Exception as e:
             gr.Warning(_("save_error", error=e))
 
@@ -513,6 +522,8 @@ def multi_file_asr(
     model_name,
     language,
     remove_trailing_punct,
+    output_srt,
+    output_txt,
     smooth_window_size,
     speech_threshold,
     min_speech_frame,
@@ -528,6 +539,8 @@ def multi_file_asr(
             model_name,
             language,
             remove_trailing_punct,
+            output_srt,
+            output_txt,
             smooth_window_size,
             speech_threshold,
             min_speech_frame,
@@ -605,6 +618,16 @@ def launch():
                     label=_("remove_trailing_punct"),
                     info=_("remove_trailing_punct_info"),
                 )
+                output_srt = gr.Checkbox(
+                    value=True,
+                    label=_("output_srt"),
+                    info=_("output_srt_info"),
+                )
+                output_txt = gr.Checkbox(
+                    value=True,
+                    label=_("output_txt"),
+                    info=_("output_txt_info"),
+                )
 
         with gr.Accordion(_("fireredvad_params"), open=False):
             with gr.Row():
@@ -675,7 +698,11 @@ def launch():
                 )
 
         with gr.Tab(label=_("single_file_transcription")), gr.Column():
-            audio_inputs = gr.Audio(label=_("upload_audio"), type="filepath")
+            audio_inputs = gr.File(
+                label=_("upload_audio&video_file"),
+                file_count="single",
+                file_types=["audio", "video"],
+            )
 
             with gr.Row():
                 stre_btn = gr.Button(_("start_transcription"), variant="primary")
@@ -717,6 +744,8 @@ def launch():
                 model_selector,
                 language_inputs,
                 remove_trailing_punct,
+                output_srt,
+                output_txt,
                 vad_smooth_window_size,
                 vad_speech_threshold,
                 vad_min_speech_frame,
@@ -731,13 +760,17 @@ def launch():
             outputs=stre_btn,
         )
 
-        save_btn.click(save_file, inputs=[audio_inputs, path_input_text], outputs=[])
+        save_btn.click(
+            save_file,
+            inputs=[audio_inputs, output_srt, output_txt, path_input_text],
+            outputs=[],
+        )
 
         with gr.Tab(label=_("multi_file_transcription")), gr.Column():
             multi_files_upload = gr.File(
-                label=_("upload_audio_files"),
+                label=_("upload_audio&video_files"),
                 file_count="directory",
-                file_types=[".mp3", ".wav", ".flac", ".m4a", ".ogg"],
+                file_types=["audio", "video"],
             )
             with gr.Row():
                 stre_btn_multi = gr.Button(_("start_transcription"), variant="primary")
@@ -770,6 +803,8 @@ def launch():
                 model_selector,
                 language_inputs,
                 remove_trailing_punct,
+                output_srt,
+                output_txt,
                 vad_smooth_window_size,
                 vad_speech_threshold,
                 vad_min_speech_frame,
