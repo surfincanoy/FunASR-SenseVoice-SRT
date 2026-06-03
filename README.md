@@ -23,7 +23,7 @@ Integrated FireRedVAD with multiple ASR models, supporting single-file or batch 
 
 ## 🌟 Core Features
 
-- 🎯 **Multi-model Support**: SenseVoiceSmall, Whisper, Paraformer, Fun-ASR-Nano, Fun-ASR-MLT-Nano
+- 🎯 **Multi-model Support**: SenseVoiceSmall, Paraformer, Fun-ASR-Nano, Fun-ASR-MLT-Nano, Granite-Speech, GLM-ASR-Nano
 - 🎭 **Multi-language Interface**: English, Chinese, Japanese (easily extensible)
 - 📝 **Batch Processing**: Single-file or batch transcription
 - ⚡ **High Performance**: Optimized for both CPU and GPU acceleration
@@ -46,17 +46,19 @@ Install using uv:
 
 ```bash
 uv pip install -r requirements.txt
-# or
-uv sync
 ```
 
 ### 3. Model Configuration
 
 #### Download and configure models:
 
-- **SenseVoiceSmall**: Automatically downloads with `disable_update=True`
-- **Whisper**: Requires additional installation: `uv pip install -U openai-whisper`
-- **VAD Model**: FireRedVAD, placed in `.pretrained_models/` by default
+- **SenseVoiceSmall**: Automatically downloads
+- **FunAsr-nano**: Automatically downloads
+- **GLM-Asr-nano**: Automatically downloads
+- **Granite-Speech**: Supported languages: English, French, German, Spanish, Portuguese and Japanese. Download from [modelscope](https://www.modelscope.cn/models/ibm-granite/granite-speech-4.1-2b) or [Huggingface](https://huggingface.co/ibm-granite/granite-speech-4.1-2b)
+- **VAD Model**: FireRedVAD folder
+> <span style="color: red;">**Important**</span>:  All models can be taken from the cache folder and placed into the project folder.  
+
 
 ### 4. Hardware Acceleration
 
@@ -78,7 +80,7 @@ uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 uv run main.py
 ```
 
-## 🌐 Multi-language Support
+## 🌐 Multi-language Support (Gradio)
 
 The application automatically detects system language:
 
@@ -102,31 +104,26 @@ uv run main.py --lang=ja    # Japanese interface
 ```
 FireRed/
 ├── 📄 main.py                 # Main program
-├── 📁 utils/                  # Utility modules
-│   └── 🌐 translator.py        # Multi-language support
-├── 📁 locales/                # Language translations
-│   ├── 🇺🇸 en.json          # English
-│   ├── 🇨🇳 zh.json          # Chinese
-│   └── 🇯🇵 ja.json          # Japanese
-├── 📁 tools/                  # Fun-ASR tools
-├── 📄 model.py                # Fun-ASR model code
 ├── 📄 ctc.py                  # CTC module
-├── 📄 pyproject.toml          # Project configuration
-├── 📄 README.md              # This file
-├── 📄 README_ZH.md           # Chinese version
-└── 📄 README_JA.md           # Japanese version
+├── 📄 model.py                # Fun-ASR model code
+├── 📄 requirements.txt        # Python dependencies
+├── 📁 asr/                    # ASR package sources
+├── 📁 FireRedVAD/             # Voice activity detection model files
+├── 📁 FunAudioLLM/            # Fun-ASR local model folders
+├── 📁 ibm-granite/            # Granite Speech model files
+├── 📁 iic/                    # Additional speech model folders
+├── 📁 locales/                # Language translations
+├── 📁 tools/                  # Utility scripts and tools
+├── 📁 utils/                  # Translation utilities
+├── 📁 ZhipuAI/                # Additional local model folders
+├── 📄 README.md               # This file
+├── 📄 README_ZH.md            # Chinese version
+└── 📄 README_JA.md            # Japanese version
 ```
 
 ## 🎯 Usage Tips
 
-> **Important**: When performing batch transcription, always try single-file transcription first to find the optimal VAD parameters and ensure accurate sentence segmentation.
-
-### Workflow:
-
-1. **Single-file Test**: Find the best settings
-2. **Batch Processing**: Apply settings to multiple files
-3. **Quality Check**: Review generated subtitles
-4. **Export & Save**: Save to the specified location
+> <span style="color: red;"> **Important**</span>: When performing batch transcription, always try single-file transcription first to find the optimal VAD parameters and ensure accurate sentence segmentation.  Please prioritize adjusting the VAD parameter Min Silence Frames to get better sentence segmentation.
 
 ## 🤝 Contributing
 
@@ -140,14 +137,6 @@ We welcome all kinds of contributions! Feel free to:
 ## 📄 License
 
 This project is open-sourced under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [FireRedVAD](https://github.com/FireRedTeam/FireRedVAD) - Voice Activity Detection
-- [Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR) - Speech Recognition
-- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Speech Recognition
-- [OpenAI Whisper](https://github.com/openai/whisper) - Speech Recognition
-- [Gradio](https://gradio.app/) - Web Interface Framework
 
 ## 📸 Interface Preview
 

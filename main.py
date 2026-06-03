@@ -17,6 +17,8 @@ from pydub import AudioSegment
 from scipy.signal import resample as scipy_resample
 from utils.translator import _, initialize_from_main, translator
 
+from asr.granite_asr import GraniteSpeechASR
+
 if __name__ == "__main__":
     initialize_from_main()
 
@@ -61,13 +63,14 @@ def get_local_model_path(relative_path: str) -> str:
 
 asr_models = {
     "SenseVoiceSmall": get_local_model_path("iic/SenseVoiceSmall"),
-    "Whisper": get_local_model_path("iic/Whisper-large-v3-turbo"),
     "Paraformer-zh": "paraformer-zh",
     "Paraformer-en": get_local_model_path(
         "iic/speech_paraformer_asr-en-16k-vocab4199-pytorch"
     ),
     "Fun-ASR-Nano": get_local_model_path("FunAudioLLM/Fun-ASR-Nano-2512"),
     "Fun-ASR-MLT-Nano": get_local_model_path("FunAudioLLM/Fun-ASR-MLT-Nano-2512"),
+    "GLM-ASR-Nano": get_local_model_path("ZhipuAI/GLM-ASR-Nano-2512"),
+    "Granite-Speech": get_local_model_path("ibm-granite/granite-speech-4.1-2b"),
 }
 
 # Language options: {display_key: asr_value}
@@ -81,11 +84,6 @@ language_options = {
         "ja": "ja",
         "ko": "ko",
     },
-    "Whisper": {
-        "zh": "zh",
-        "en": "en",
-        "ja": "ja",
-    },
     "Paraformer-zh": {
         "zh": "zh",
     },
@@ -96,6 +94,16 @@ language_options = {
         "中文": "中文",
         "英文": "英文",
         "日文": "日文",
+    },
+    "GLM-ASR-Nano": {
+        "Mandarin": "Mandarin",
+        "English": "English",
+        "Spanish": "Spanish",
+        "German": "German",
+        "Dutch": "Dutch",
+        "Italian": "Italian",
+        "Catalan": "Catalan",
+        "Ukrainian": "Ukrainian",
     },
     "Fun-ASR-MLT-Nano": {
         "中文": "中文",
@@ -116,86 +124,83 @@ language_options = {
         "丹麦语": "丹麦语",
         "荷兰语": "荷兰语",
         "爱沙尼亚语": "爱沙尼亚语",
-        "芬兰语": "芬兰语",
-        "希腊语": "希腊语",
-        "匈牙利语": "匈牙利语",
-        "爱尔兰语": "爱尔兰语",
-        "拉脱维亚语": "拉脱维亚语",
-        "立陶宛语": "立陶宛语",
-        "马耳他语": "马耳他语",
-        "波兰语": "波兰语",
-        "葡萄牙语": "葡萄牙语",
-        "罗马尼亚语": "罗马尼亚语",
-        "斯洛伐克语": "斯洛伐克语",
-        "斯洛文尼亚语": "斯洛文尼亚语",
-        "瑞典语": "瑞典语",
     },
 }
 
 # Default language for each model
 default_languages = {
     "SenseVoiceSmall": "en",
-    "Whisper": "en",
     "Paraformer-zh": "zh",
     "Paraformer-en": "en",
     "Fun-ASR-Nano": "中文",
     "Fun-ASR-MLT-Nano": "中文",
+    "GLM-ASR-Nano": "Mandarin",
 }
 
 # Loaded model cache
 loaded_models = {}
+vad_cache = {}
+
+
+def get_device(model_name: str | None = None) -> str:
+    # Prefer CUDA if available, otherwise use MPS if available, else CPU
+    if torch.cuda.is_available():
+        return "cuda:0"
+    return "cpu"
 
 
 def clear_model_cache():
     """清理已加载的模型显存"""
-    global loaded_models
+    global loaded_models, vad_cache
     for model_name in list(loaded_models.keys()):
         try:
             del loaded_models[model_name]
         except Exception:
             pass
     loaded_models.clear()
+    vad_cache.clear()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
 
 
 def get_asr_model(model_name, device):
-    if model_name not in loaded_models:
+    key = (model_name, device)
+    if key not in loaded_models:
         if model_name == "SenseVoiceSmall":
-            loaded_models[model_name] = AutoModel(
+            loaded_models[key] = AutoModel(
                 model=asr_models[model_name],
                 device=device,
-                disable_update=True,
-            )
-        elif model_name == "Whisper":
-            loaded_models[model_name] = AutoModel(
-                model=asr_models[model_name],
-                device=device,
-                vad_kwargs={"max_single_segment_time": 30000},
                 disable_update=True,
             )
         elif model_name in ["Paraformer-zh", "Paraformer-en"]:
-            loaded_models[model_name] = AutoModel(
+            loaded_models[key] = AutoModel(
                 model=asr_models[model_name],
                 model_revision="v2.0.4",
                 vad_model="fsmn-vad",
                 vad_model_revision="v2.0.4",
-                punc_model="ct-punc-c",
-                punc_model_revision="v2.0.4",
+                punc_model="iic/punc_ct-transformer_cn-en-common-vocab471067-large",
                 device=device,
                 disable_update=True,
             )
         elif model_name in ["Fun-ASR-Nano", "Fun-ASR-MLT-Nano"]:
-            loaded_models[model_name] = AutoModel(
+            loaded_models[key] = AutoModel(
                 model=asr_models[model_name],
                 trust_remote_code=True,
                 remote_code="./model.py",
                 device=device,
-                hub="ms",
                 disable_update=True,
             )
-    return loaded_models[model_name]
+        elif model_name == "GLM-ASR-Nano":
+            loaded_models[key] = AutoModel(
+                model=asr_models[model_name],
+                device=device,
+                disable_update=True,
+                dtype="bf16" if device.startswith("cuda") else "fp16",
+            )
+        elif model_name == "Granite-Speech":
+            loaded_models[key] = GraniteSpeechASR(device=device)
+    return loaded_models[key]
 
 
 def get_vad_model(
@@ -207,6 +212,18 @@ def get_vad_model(
     merge_silence_frame,
     extend_speech_frame,
 ):
+    config_key = (
+        smooth_window_size,
+        speech_threshold,
+        min_speech_frame,
+        max_speech_frame,
+        min_silence_frame,
+        merge_silence_frame,
+        extend_speech_frame,
+    )
+    if config_key in vad_cache:
+        return vad_cache[config_key]
+
     vad_config = FireRedVadConfig(
         use_gpu=False,
         smooth_window_size=smooth_window_size,
@@ -218,10 +235,8 @@ def get_vad_model(
         extend_speech_frame=extend_speech_frame,
         chunk_max_frame=30000,
     )
-    vad = FireRedVad.from_pretrained(
-        "./FireRedVAD",
-        vad_config,
-    )
+    vad = FireRedVad.from_pretrained("./FireRedVAD", vad_config)
+    vad_cache[config_key] = vad
     return vad
 
 
@@ -237,29 +252,39 @@ def reformat_time(second):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def write_srt(srt_result, srt_file):
+def write_srt(srt_lines, srt_file):
     with Path.open(srt_file, "w", encoding="utf-8") as f:
-        f.writelines(srt_result)
+        f.writelines(srt_lines)
 
 
-def cut_wav_to_ndarray(wav_path: str, start_s: float, end_s: float) -> np.ndarray:
-    if end_s <= start_s:
-        raise ValueError("end_s must be > start_s")
+def is_wav_16000_mono(path: str) -> bool:
+    try:
+        with sf.SoundFile(path) as f:
+            return f.samplerate == 16000 and f.channels == 1
+    except Exception:
+        return False
 
-    with sf.SoundFile(wav_path) as f:
-        sr = f.samplerate
-        channels = f.channels
-        start_frame = max(0, int(start_s / 1000 * sr))
-        end_frame = max(start_frame + 1, int(end_s / 1000 * sr))
-        frames = end_frame - start_frame
-        f.seek(start_frame)
-        audio = f.read(frames, dtype="float32")
-    if channels > 1:
+
+def convert_to_wav(input_path: str, output_path: Path) -> str:
+    input_path_obj = Path(input_path)
+    if input_path_obj.suffix.lower() == ".wav" and is_wav_16000_mono(input_path):
+        return input_path
+
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_frame_rate(16000).set_channels(1)
+    audio.export(str(output_path), format="wav")
+    return str(output_path)
+
+
+def load_wav_mono_16k(wav_file: str) -> tuple[np.ndarray, int]:
+    audio, sr = sf.read(wav_file, dtype="float32")
+    if audio.ndim > 1:
         audio = np.mean(audio, axis=1)
     if sr != 16000:
         num_samples = int(len(audio) * 16000 / sr)
         audio = scipy_resample(audio, num_samples)
-    return audio
+        sr = 16000
+    return audio, sr
 
 
 def extract_segment_tensor(
@@ -268,6 +293,31 @@ def extract_segment_tensor(
     start_sample = int(start * sample_rate)
     end_sample = int(end * sample_rate)
     return waveform[start_sample:end_sample]
+
+
+def _build_srt_entry(index: int, start: float, end: float, text: str) -> str:
+    return (
+        f"{index}\n"
+        f"{reformat_time(start)} --> {reformat_time(end)}\n"
+        f"{text}\n\n"
+    )
+
+
+def _load_audio_for_transcription(wav_file: str) -> tuple[np.ndarray, int]:
+    audio, sr = sf.read(wav_file, dtype="float32")
+    if audio.ndim > 1:
+        audio = np.mean(audio, axis=1)
+    if sr != 16000:
+        num_samples = int(len(audio) * 16000 / sr)
+        audio = scipy_resample(audio, num_samples)
+        sr = 16000
+    return audio, sr
+
+
+def _clean_text(text: str, remove_trailing_punct: bool) -> str:
+    if remove_trailing_punct:
+        return remove_trailing_punctuation(text.strip())
+    return text.strip()
 
 
 def model_inference(
@@ -285,25 +335,34 @@ def model_inference(
     merge_silence_frame,
     extend_speech_frame,
 ):
-    if input_wav is None or input_wav == "":
+    if not input_wav:
         gr.Warning(_("please_upload_audio_first"))
         return []
 
     srt_file = Path(input_wav).with_suffix(".srt")
     txt_file = Path(input_wav).with_suffix(".txt")
-
-    device = (
-        "cuda:0"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-    )
+    device = get_device(model_name)
     asr_model = get_asr_model(model_name, device)
 
-    selected_language = language_options[model_name].get(
-        language, default_languages[model_name]
-    )
+    # Ensure underlying model tensors are on the chosen device (helps some wrappers)
+    try:
+        if hasattr(asr_model, "model"):
+            try:
+                asr_model.model.to(torch.device(device))
+                # also sync wrapper device attribute if present
+                try:
+                    setattr(asr_model, "device", device)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+    selected_language = None
+    if model_name != "Granite-Speech":
+        selected_language = language_options[model_name].get(
+            language, default_languages[model_name]
+        )
 
     vad = get_vad_model(
         smooth_window_size,
@@ -317,79 +376,63 @@ def model_inference(
 
     wav_path = Path(input_wav).with_suffix(".wav")
     wav_file = convert_to_wav(input_wav, wav_path)
+    timestamps = vad.detect(wav_file)[0].get("timestamps", [])
+
+    srt_lines = []
+    txt_lines = []
+    data = []
+    srt_id = 1
 
     if model_name in ["Fun-ASR-Nano", "Fun-ASR-MLT-Nano"]:
-        waveform_np, sample_rate = sf.read(wav_file, dtype="float32")
-        if waveform_np.ndim > 1:
-            waveform_np = np.mean(waveform_np, axis=1)
+        waveform_np, sample_rate = _load_audio_for_transcription(wav_file)
         waveform = torch.from_numpy(waveform_np)
-        result, probs = vad.detect(wav_file)
-        timestamps = result.get("timestamps", [])
-
-        all_segments = [
+        segments = [
             extract_segment_tensor(waveform, sample_rate, start, end)
             for start, end in timestamps
         ]
-
         res = asr_model.generate(
-            input=all_segments,
+            input=segments,
             cache={},
             batch_size=1,
             language=selected_language,
             itn=True,
         )
 
-        srt_result = ""
-        txt_lines = []
-        data = []
-        srt_id = 1
+        for idx, (start, end) in enumerate(timestamps):
+            text = _clean_text(res[idx]["text"], remove_trailing_punct)
+            if not text:
+                continue
+            srt_lines.append(_build_srt_entry(srt_id, start, end, text))
+            txt_lines.append(text)
+            data.append([str(srt_id), reformat_time(start), reformat_time(end), text])
+            srt_id += 1
+        del waveform
+    elif model_name == "GLM-ASR-Nano":
+        waveform_np, sample_rate = _load_audio_for_transcription(wav_file)
+        segments = [
+            extract_segment_tensor(torch.from_numpy(waveform_np), sample_rate, start, end).numpy()
+            for start, end in timestamps
+        ]
+        res = asr_model.generate(
+            input=segments,
+            language=selected_language,
+            itn=True,
+        )
 
         for idx, (start, end) in enumerate(timestamps):
-            text = res[idx]["text"]
-            text = text.strip()
-            if remove_trailing_punct:
-                text = remove_trailing_punctuation(text)
-            if text:
-                srt_result += (
-                    str(srt_id)
-                    + "\n"
-                    + reformat_time(start)
-                    + " --> "
-                    + reformat_time(end)
-                    + "\n"
-                    + text
-                    + "\n\n"
-                )
-                txt_lines.append(text)
-                data.append(
-                    [
-                        str(srt_id),
-                        reformat_time(start),
-                        reformat_time(end),
-                        text,
-                    ]
-                )
-                srt_id += 1
-
-        del waveform
+            text = _clean_text(res[idx]["text"], remove_trailing_punct)
+            if not text:
+                continue
+            srt_lines.append(_build_srt_entry(srt_id, start, end, text))
+            txt_lines.append(text)
+            data.append([str(srt_id), reformat_time(start), reformat_time(end), text])
+            srt_id += 1
     else:
-        result, probs = vad.detect(wav_file)
-        timestamps = result.get("timestamps", [])
-
-        audio_full, sr = sf.read(wav_file, dtype="float32")
-        if audio_full.ndim > 1:
-            audio_full = np.mean(audio_full, axis=1)
-
-        srt_result = ""
-        txt_lines = []
-        data = []
-        srt_id = 1
-
+        audio_full, sr = _load_audio_for_transcription(wav_file)
         for start, end in timestamps:
             start_sample = int(start * sr)
             end_sample = int(end * sr)
             audio_temp = audio_full[start_sample:end_sample]
-
             cleaned_text = ""
             if model_name == "SenseVoiceSmall":
                 res = asr_model.generate(
@@ -407,95 +450,31 @@ def model_inference(
                 cleaned_text = emoji.replace_emoji(cleaned_text, replace="")
                 if selected_language not in ["en", "ko"]:
                     cleaned_text = cleaned_text.replace(" ", "").strip()
-                if remove_trailing_punct:
-                    cleaned_text = remove_trailing_punctuation(cleaned_text)
-            elif model_name == "Whisper":
-                prompt_dict = {
-                    "en": "Tom, There is a Chinese person among them.",
-                    "zh": "我是一个台湾人，也是一个中国人。",
-                    "ja": "その中に、一人の日本人がいます。誰だと思いますか？",
-                }
-                decodingoptions = {
-                    "task": "transcribe",
-                    "language": selected_language,
-                    "beam_size": None,
-                    "fp16": True,
-                    "without_timestamps": True,
-                    "prompt": prompt_dict.get(language, ""),
-                }
-                res = asr_model.generate(
-                    input=audio_temp,
-                    DecodingOptions=decodingoptions,
-                    batch_size_s=0,
-                )
-                cleaned_text = res[0]["text"]
-                if remove_trailing_punct:
-                    cleaned_text = remove_trailing_punctuation(cleaned_text)
+                cleaned_text = _clean_text(cleaned_text, remove_trailing_punct)
             elif model_name in ["Paraformer-zh", "Paraformer-en"]:
                 res = asr_model.generate(
                     input=audio_temp,
                     batch_size_s=300,
                     hotword="",
                 )
-                cleaned_text = res[0]["text"]
-                if remove_trailing_punct:
-                    cleaned_text = remove_trailing_punctuation(cleaned_text)
-            elif model_name == "Whisper":
-                prompt_dict = {
-                    "en": "Tom, There is a Chinese person among them.",
-                    "zh": "我是一个台湾人，也是一个中国人。",
-                    "ja": "その中に、一人の日本人がいます。誰だと思いますか？",
-                }
-                decodingoptions = {
-                    "task": "transcribe",
-                    "language": selected_language,
-                    "beam_size": None,
-                    "fp16": True,
-                    "without_timestamps": True,
-                    "prompt": prompt_dict.get(language, ""),
-                }
-                res = asr_model.generate(
-                    input=audio_temp,
-                    DecodingOptions=decodingoptions,
-                    batch_size_s=0,
-                )
-                cleaned_text = res[0]["text"]
-                if remove_trailing_punct:
-                    cleaned_text = remove_trailing_punctuation(cleaned_text)
-            elif model_name in ["Paraformer-zh", "Paraformer-en"]:
-                res = asr_model.generate(
-                    input=audio_temp,
-                    batch_size_s=300,
-                    hotword="",
-                )
-                cleaned_text = res[0]["text"]
-                if remove_trailing_punct:
-                    cleaned_text = remove_trailing_punctuation(cleaned_text)
+                cleaned_text = _clean_text(res[0]["text"], remove_trailing_punct)
+            elif model_name == "Granite-Speech":
+                seg_tensor = torch.from_numpy(audio_temp).unsqueeze(0).float()
+                cleaned_text = _clean_text(asr_model.transcribe_segment(seg_tensor), remove_trailing_punct)
 
-            srt_result += (
-                str(srt_id)
-                + "\n"
-                + reformat_time(start)
-                + " --> "
-                + reformat_time(end)
-                + "\n"
-                + cleaned_text
-                + "\n\n"
-            )
+            if not cleaned_text:
+                continue
+            srt_lines.append(_build_srt_entry(srt_id, start, end, cleaned_text))
             txt_lines.append(cleaned_text)
-            data.append(
-                [
-                    str(srt_id),
-                    reformat_time(start),
-                    reformat_time(end),
-                    cleaned_text,
-                ]
-            )
+            data.append([str(srt_id), reformat_time(start), reformat_time(end), cleaned_text])
             srt_id += 1
 
-    write_srt(srt_result, srt_file)
-    with open(txt_file, "w", encoding="utf-8") as f:
-        f.write("".join(txt_lines))
+    if output_srt:
+        write_srt(srt_lines, srt_file)
+    if output_txt:
+        with open(txt_file, "w", encoding="utf-8") as f:
+            f.write("".join(txt_lines))
+
     gr.Info(_("transcript_completed", filename=Path(input_wav).name))
     return data
 
@@ -555,14 +534,14 @@ def multi_file_asr(
 
 def save_multi_srt(multi_files_upload, path_input_text):
     for audio_inputs in multi_files_upload:
-        save_file(audio_inputs, path_input_text)
+        save_file(audio_inputs, True, True, path_input_text)
 
 
 def get_html_content():
     return f"""
 <div>
     <h2 style="font-size: 22px;margin-left: 0px;">{"FireRed VAD + ASR SRT Generator"}</h2>
-    <p style="font-size: 18px;margin-left: 20px;">{"Integrated FireRedVAD with SenseVoice/Whisper/Paraformer/Fun-ASR for subtitle generation"}</p>
+    <p style="font-size: 18px;margin-left: 20px;">{"Integrated FireRedVAD with SenseVoice/Paraformer/Fun-ASR for subtitle generation"}</p>
     <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">SenseVoice</a>
     <a href="https://github.com/FunAudioLLM/Fun-ASR" target="_blank">Fun-ASR</a>
     <a href="https://github.com/FireRedTeam/FireRedVAD" target="_blank">FireRedVAD</a>
@@ -571,6 +550,8 @@ def get_html_content():
 
 
 def update_language_options(model_name):
+    if model_name == "Granite-Speech":
+        return gr.Dropdown(choices=[], value=None, label=_("spoken_language"), visible=False)
     choices = []
     for display_key, asr_value in language_options[model_name].items():
         translated = translator.t("language_names." + display_key)
@@ -581,6 +562,7 @@ def update_language_options(model_name):
         choices=choices,
         value=default_languages[model_name],
         label=_("spoken_language"),
+        visible=True,
     )
 
 
@@ -595,11 +577,12 @@ def launch():
             model_selector = gr.Radio(
                 choices=[
                     "SenseVoiceSmall",
-                    "Whisper",
                     "Paraformer-zh",
                     "Paraformer-en",
                     "Fun-ASR-Nano",
                     "Fun-ASR-MLT-Nano",
+                    "GLM-ASR-Nano",
+                    "Granite-Speech",
                 ],
                 value="SenseVoiceSmall",
                 label=_("select_model"),
@@ -769,7 +752,7 @@ def launch():
         with gr.Tab(label=_("multi_file_transcription")), gr.Column():
             multi_files_upload = gr.File(
                 label=_("upload_audio&video_files"),
-                file_count="directory",
+                file_count="multiple",
                 file_types=["audio", "video"],
             )
             with gr.Row():
