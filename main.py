@@ -1,8 +1,12 @@
 import gc
-import shutil
+import os
+import re
 import string
+import tempfile
 import threading
 import webbrowser
+import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import emoji
@@ -333,11 +337,13 @@ def model_inference(
     extend_speech_frame,
 ):
     if not input_wav:
-        gr.Warning(_("please_upload_audio_first"))
-        return []
+        print("[Warning]", _("please_upload_audio_first"))
+        return [], gr.update(visible=False), gr.update(visible=False)
 
-    srt_file = Path(input_wav).with_suffix(".srt")
-    txt_file = Path(input_wav).with_suffix(".txt")
+    tmpdir = tempfile.mkdtemp()
+    base_name = re.sub(r'[^\w\-.]', '_', Path(input_wav).stem)
+    srt_file = Path(tmpdir) / f"{base_name}.srt"
+    txt_file = Path(tmpdir) / f"{base_name}.txt"
     device = get_device(model_name)
     asr_model = get_asr_model(model_name, device)
 
@@ -466,31 +472,16 @@ def model_inference(
             data.append([str(srt_id), reformat_time(start), reformat_time(end), cleaned_text])
             srt_id += 1
 
-    if output_srt:
-        write_srt(srt_lines, srt_file)
-    if output_txt:
-        with open(txt_file, "w", encoding="utf-8") as f:
+    srt_path = str(srt_file) if output_srt and srt_lines else None
+    txt_path = str(txt_file) if output_txt and txt_lines else None
+    if srt_path:
+        write_srt(srt_lines, srt_path)
+    if txt_path:
+        with open(txt_path, "w", encoding="utf-8") as f:
             f.write("".join(txt_lines))
 
-    gr.Info(_("transcript_completed", filename=Path(input_wav).name))
-    return data
-
-
-def save_file(audio_inputs, output_srt, output_txt, path_input_text):
-    if not Path(path_input_text).is_dir() or path_input_text.strip() == "":
-        gr.Warning(_("invalid_folder"))
-    else:
-        try:
-            srt_file = Path(audio_inputs).with_suffix(".srt")
-            txt_file = Path(audio_inputs).with_suffix(".txt")
-            if output_srt and srt_file.exists():
-                shutil.copy2(srt_file, path_input_text)
-                gr.Info(_("files_saved", srt_file=srt_file.name))
-            if output_txt and txt_file.exists():
-                shutil.copy2(txt_file, path_input_text)
-                gr.Info(_("files_saved", txt_file=txt_file.name))
-        except Exception as e:
-            gr.Warning(_("save_error", error=e))
+    print(_("transcript_completed", filename=Path(input_wav).name))
+    return data, srt_path, txt_path
 
 
 def multi_file_asr(
@@ -508,9 +499,9 @@ def multi_file_asr(
     merge_silence_frame,
     extend_speech_frame,
 ):
-    num = 0
+    collected = []
     for audio_inputs in multi_files_upload:
-        model_inference(
+        _data, srt_path, txt_path = model_inference(
             audio_inputs,
             model_name,
             language,
@@ -525,13 +516,22 @@ def multi_file_asr(
             merge_silence_frame,
             extend_speech_frame,
         )
-        num += 1
-    gr.Info(_("total_transcriptions", num=num))
+        if srt_path:
+            collected.append(srt_path)
+        if txt_path:
+            collected.append(txt_path)
 
+    if not collected:
+        print("[Info]", _("total_transcriptions", num=0))
+        return gr.update(visible=False)
 
-def save_multi_srt(multi_files_upload, path_input_text):
-    for audio_inputs in multi_files_upload:
-        save_file(audio_inputs, True, True, path_input_text)
+    zip_path = os.path.join(tempfile.gettempdir(), f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in collected:
+            z.write(f, os.path.basename(f))
+
+    print("[Info]", _("total_transcriptions", num=len(collected)))
+    return gr.update(value=zip_path, visible=True)
 
 
 def get_html_content():
@@ -792,20 +792,10 @@ def launch():
                     gr.Button(_("start_transcription"), variant="primary"),
                     lambda: gr.update(value=_("start_transcription")),
                 )
-                save_btn = _c(
-                    gr.Button(_("save_subtitles"), variant="primary"),
-                    lambda: gr.update(value=_("save_subtitles")),
+                single_zip_btn = _c(
+                    gr.DownloadButton(label=_("download_zip"), visible=False),
+                    lambda: gr.update(label=_("download_zip")),
                 )
-            path_input_text = _c(
-                gr.Text(
-                    label=_("save_path"),
-                    interactive=True,
-                    placeholder=_("save_path_placeholder"),
-                ),
-                lambda: gr.update(
-                    label=_("save_path"), placeholder=_("save_path_placeholder")
-                ),
-            )
             output_table = _c(
                 gr.Dataframe(
                     headers=[
@@ -827,6 +817,33 @@ def launch():
                 ),
             )
 
+        def single_file_callback(input_wav, model_name, language,
+                                  remove_trailing_punct, output_srt, output_txt,
+                                  vad_smooth_window_size, vad_speech_threshold,
+                                  vad_min_speech_frame, vad_max_speech_frame,
+                                  vad_min_silence_frame, vad_merge_silence_frame,
+                                  vad_extend_speech_frame):
+            data, srt_path, txt_path = model_inference(
+                input_wav, model_name, language,
+                remove_trailing_punct, output_srt, output_txt,
+                vad_smooth_window_size, vad_speech_threshold,
+                vad_min_speech_frame, vad_max_speech_frame,
+                vad_min_silence_frame, vad_merge_silence_frame,
+                vad_extend_speech_frame,
+            )
+            collected = [p for p in (srt_path, txt_path) if p]
+            if collected:
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                base_name = Path(input_wav).stem
+                zip_path = os.path.join(tempfile.gettempdir(), f"{base_name}.zip")
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for f in collected:
+                        z.write(f, os.path.basename(f))
+                zip_upd = gr.update(value=zip_path, visible=True)
+            else:
+                zip_upd = gr.update(visible=False)
+            return gr.update(value=data), zip_upd
+
         model_selector.change(
             update_language_options,
             inputs=model_selector,
@@ -843,7 +860,7 @@ def launch():
             lambda: gr.update(interactive=False),
             outputs=stre_btn,
         ).then(
-            model_inference,
+            single_file_callback,
             inputs=[
                 audio_inputs,
                 model_selector,
@@ -859,16 +876,10 @@ def launch():
                 vad_merge_silence_frame,
                 vad_extend_speech_frame,
             ],
-            outputs=output_table,
+            outputs=[output_table, single_zip_btn],
         ).then(
             lambda: gr.update(interactive=True),
             outputs=stre_btn,
-        )
-
-        save_btn.click(
-            save_file,
-            inputs=[audio_inputs, output_srt, output_txt, path_input_text],
-            outputs=[],
         )
 
         tab_multi = _c(
@@ -889,20 +900,10 @@ def launch():
                     gr.Button(_("start_transcription"), variant="primary"),
                     lambda: gr.update(value=_("start_transcription")),
                 )
-                save_btn_multi = _c(
-                    gr.Button(_("save_subtitles"), variant="primary"),
-                    lambda: gr.update(value=_("save_subtitles")),
+                multi_zip_btn = _c(
+                    gr.DownloadButton(label=_("download_zip"), visible=False),
+                    lambda: gr.update(label=_("download_zip")),
                 )
-            path_input_text_multi = _c(
-                gr.Text(
-                    label=_("save_path"),
-                    interactive=True,
-                    placeholder=_("save_path_placeholder"),
-                ),
-                lambda: gr.update(
-                    label=_("save_path"), placeholder=_("save_path_placeholder")
-                ),
-            )
 
         model_selector.change(
             update_language_options,
@@ -936,16 +937,10 @@ def launch():
                 vad_merge_silence_frame,
                 vad_extend_speech_frame,
             ],
-            outputs=[],
+            outputs=multi_zip_btn,
         ).then(
             lambda: gr.update(interactive=True),
             outputs=stre_btn_multi,
-        )
-
-        save_btn_multi.click(
-            save_multi_srt,
-            inputs=[multi_files_upload, path_input_text_multi],
-            outputs=[],
         )
 
         # ---- Language switcher ----
