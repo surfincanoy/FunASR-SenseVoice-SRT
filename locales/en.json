@@ -1,7 +1,11 @@
 {
     "title": "FireRedVAD + ASR SRT Generator",
     "description": "Integrated FireRedVAD with SenseVoice/Whisper/Paraformer/Fun-ASR for subtitle generation",
+    "language": "Language",
     "select_model": "Select ASR Model",
+    "download_srt": "Download SRT",
+    "download_txt": "Download TXT",
+    "download_zip": "Download All (ZIP)",
     "configuration": "Configuration",
     "spoken_language": "Spoken Language",
     "single_file_transcription": "Single-file Transcription",

@@ -1,7 +1,11 @@
 {
     "title": "SRT ジェネレーター",
     "description": "FireRedVADとSenseVoice/Whisper/Paraformer/Fun-ASRを統合した字幕生成ツール",
+    "language": "言語",
     "select_model": "ASRモデルを選択",
+    "download_srt": "SRT をダウンロード",
+    "download_txt": "TXT をダウンロード",
+    "download_zip": "すべて ZIP でダウンロード",
     "configuration": "設定",
     "spoken_language": "話される言語",
     "single_file_transcription": "単一ファイルの文字起こし",

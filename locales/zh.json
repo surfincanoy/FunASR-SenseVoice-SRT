@@ -1,7 +1,11 @@
 {
-    "title": "SRT 生成器",
-    "description": "字幕生成工具",
+    "title": "FireRedVAD + ASR SRT 生成器",
+    "description": "集成 FireRedVAD 与 SenseVoice/Whisper/Paraformer/Fun-ASR 的字幕生成工具",
+    "language": "界面语言",
     "select_model": "选择ASR模型",
+    "download_srt": "下载 SRT",
+    "download_txt": "下载 TXT",
+    "download_zip": "下载全部 (ZIP)",
     "configuration": "配置",
     "spoken_language": "口语语言",
     "single_file_transcription": "单文件转录",
