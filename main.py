@@ -15,12 +15,9 @@ from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 from pydub import AudioSegment
 from scipy.signal import resample as scipy_resample
-from utils.translator import _, initialize_from_main, translator
+from utils.translator import _, translator
 
 from asr.granite_asr import GraniteSpeechASR
-
-if __name__ == "__main__":
-    initialize_from_main()
 
 
 def remove_trailing_punctuation(text: str) -> str:
@@ -540,8 +537,8 @@ def save_multi_srt(multi_files_upload, path_input_text):
 def get_html_content():
     return f"""
 <div>
-    <h2 style="font-size: 22px;margin-left: 0px;">{"FireRed VAD + ASR SRT Generator"}</h2>
-    <p style="font-size: 18px;margin-left: 20px;">{"Integrated FireRedVAD with SenseVoice/Paraformer/Fun-ASR for subtitle generation"}</p>
+    <h2 style="font-size: 22px;margin-left: 0px;">{_('title')}</h2>
+    <p style="font-size: 18px;margin-left: 20px;">{_('description')}</p>
     <p style="margin-left: 20px;"><a href="https://github.com/FunAudioLLM/SenseVoice" target="_blank">SenseVoice</a>
     <a href="https://github.com/FunAudioLLM/Fun-ASR" target="_blank">Fun-ASR</a>
     <a href="https://github.com/FireRedTeam/FireRedVAD" target="_blank">FireRedVAD</a>
@@ -567,27 +564,65 @@ def update_language_options(model_name):
 
 
 def launch():
+    # ---- i18n: component tracking ----
+    _i18n_comps = []
+    _i18n_updaters = []
+
+    def _c(comp, updater):
+        _i18n_comps.append(comp)
+        _i18n_updaters.append(updater)
+        return comp
+
+    def _c_accordion(comp, key):
+        _i18n_comps.append(comp)
+        _i18n_updaters.append(lambda: gr.update(label=_(key)))
+        return comp
+
+    def switch_lang(lang_code, current_model):
+        translator.set_language(lang_code)
+        base = [updater() for updater in _i18n_updaters]
+        lang_upd = update_language_options(current_model)
+        return base + [lang_upd]
+
     with gr.Blocks(
         title="FunASR&SenseVoice SRT Generator",
         theme=gr.themes.Default(primary_hue="green", secondary_hue="blue"),
     ) as demo:
-        gr.HTML(get_html_content())
+        with gr.Row():
+            header_html = _c(
+                gr.HTML(get_html_content()),
+                lambda: gr.update(value=get_html_content()),
+            )
+            lang_selector = gr.Dropdown(
+                choices=[(v, k) for k, v in translator.get_available_languages().items()],
+                value=translator.get_current_language(),
+                label=_("language"),
+                scale=0,
+                min_width=160,
+            )
 
         with gr.Column():
-            model_selector = gr.Radio(
-                choices=[
-                    "SenseVoiceSmall",
-                    "Paraformer-zh",
-                    "Paraformer-en",
-                    "Fun-ASR-Nano",
-                    "Fun-ASR-MLT-Nano",
-                    "GLM-ASR-Nano",
-                    "Granite-Speech",
-                ],
-                value="SenseVoiceSmall",
-                label=_("select_model"),
+            model_selector = _c(
+                gr.Radio(
+                    choices=[
+                        "SenseVoiceSmall",
+                        "Paraformer-zh",
+                        "Paraformer-en",
+                        "Fun-ASR-Nano",
+                        "Fun-ASR-MLT-Nano",
+                        "GLM-ASR-Nano",
+                        "Granite-Speech",
+                    ],
+                    value="SenseVoiceSmall",
+                    label=_("select_model"),
+                ),
+                lambda: gr.update(label=_("select_model")),
             )
-            with gr.Accordion(_("configuration"), open=True), gr.Row():
+            config_accordion = _c_accordion(
+                gr.Accordion(_("configuration"), open=True),
+                "configuration",
+            )
+            with config_accordion, gr.Row():
                 language_inputs = gr.Dropdown(
                     choices=[
                         (translator.t("language_names." + k), k)
@@ -596,113 +631,200 @@ def launch():
                     value=default_languages["SenseVoiceSmall"],
                     label=_("spoken_language"),
                 )
-                remove_trailing_punct = gr.Checkbox(
-                    value=False,
-                    label=_("remove_trailing_punct"),
-                    info=_("remove_trailing_punct_info"),
+                remove_trailing_punct = _c(
+                    gr.Checkbox(
+                        value=False,
+                        label=_("remove_trailing_punct"),
+                        info=_("remove_trailing_punct_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("remove_trailing_punct"),
+                        info=_("remove_trailing_punct_info"),
+                    ),
                 )
-                output_srt = gr.Checkbox(
-                    value=True,
-                    label=_("output_srt"),
-                    info=_("output_srt_info"),
+                output_srt = _c(
+                    gr.Checkbox(
+                        value=True,
+                        label=_("output_srt"),
+                        info=_("output_srt_info"),
+                    ),
+                    lambda: gr.update(label=_("output_srt"), info=_("output_srt_info")),
                 )
-                output_txt = gr.Checkbox(
-                    value=True,
-                    label=_("output_txt"),
-                    info=_("output_txt_info"),
-                )
-
-        with gr.Accordion(_("fireredvad_params"), open=False):
-            with gr.Row():
-                vad_smooth_window_size = gr.Slider(
-                    label=_("vad_smooth_window_size"),
-                    minimum=1,
-                    maximum=21,
-                    step=1,
-                    value=5,
-                    interactive=True,
-                    info=_("vad_smooth_window_size_info"),
-                )
-                vad_speech_threshold = gr.Slider(
-                    label=_("vad_speech_threshold"),
-                    minimum=0.1,
-                    maximum=0.9,
-                    step=0.05,
-                    value=0.4,
-                    interactive=True,
-                    info=_("vad_speech_threshold_info"),
-                )
-            with gr.Row():
-                vad_min_speech_frame = gr.Slider(
-                    label=_("vad_min_speech_frame"),
-                    minimum=1,
-                    maximum=100,
-                    step=1,
-                    value=20,
-                    interactive=True,
-                    info=_("vad_min_speech_frame_info"),
-                )
-                vad_max_speech_frame = gr.Slider(
-                    label=_("vad_max_speech_frame"),
-                    minimum=100,
-                    maximum=5000,
-                    step=50,
-                    value=2000,
-                    interactive=True,
-                    info=_("vad_max_speech_frame_info"),
-                )
-                vad_min_silence_frame = gr.Slider(
-                    label=_("vad_min_silence_frame"),
-                    minimum=1,
-                    maximum=200,
-                    step=1,
-                    value=100,
-                    interactive=True,
-                    info=_("vad_min_silence_frame_info"),
-                )
-            with gr.Row():
-                vad_merge_silence_frame = gr.Slider(
-                    label=_("vad_merge_silence_frame"),
-                    minimum=0,
-                    maximum=50,
-                    step=1,
-                    value=0,
-                    interactive=True,
-                    info=_("vad_merge_silence_frame_info"),
-                )
-                vad_extend_speech_frame = gr.Slider(
-                    label=_("vad_extend_speech_frame"),
-                    minimum=0,
-                    maximum=50,
-                    step=1,
-                    value=0,
-                    interactive=True,
-                    info=_("vad_extend_speech_frame_info"),
+                output_txt = _c(
+                    gr.Checkbox(
+                        value=True,
+                        label=_("output_txt"),
+                        info=_("output_txt_info"),
+                    ),
+                    lambda: gr.update(label=_("output_txt"), info=_("output_txt_info")),
                 )
 
-        with gr.Tab(label=_("single_file_transcription")), gr.Column():
-            audio_inputs = gr.File(
-                label=_("upload_audio&video_file"),
-                file_count="single",
-                file_types=["audio", "video"],
+        vad_accordion = _c_accordion(
+            gr.Accordion(_("fireredvad_params"), open=False),
+            "fireredvad_params",
+        )
+        with vad_accordion:
+            with gr.Row():
+                vad_smooth_window_size = _c(
+                    gr.Slider(
+                        label=_("vad_smooth_window_size"),
+                        minimum=1,
+                        maximum=21,
+                        step=1,
+                        value=5,
+                        interactive=True,
+                        info=_("vad_smooth_window_size_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_smooth_window_size"),
+                        info=_("vad_smooth_window_size_info"),
+                    ),
+                )
+                vad_speech_threshold = _c(
+                    gr.Slider(
+                        label=_("vad_speech_threshold"),
+                        minimum=0.1,
+                        maximum=0.9,
+                        step=0.05,
+                        value=0.4,
+                        interactive=True,
+                        info=_("vad_speech_threshold_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_speech_threshold"),
+                        info=_("vad_speech_threshold_info"),
+                    ),
+                )
+            with gr.Row():
+                vad_min_speech_frame = _c(
+                    gr.Slider(
+                        label=_("vad_min_speech_frame"),
+                        minimum=1,
+                        maximum=100,
+                        step=1,
+                        value=20,
+                        interactive=True,
+                        info=_("vad_min_speech_frame_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_min_speech_frame"),
+                        info=_("vad_min_speech_frame_info"),
+                    ),
+                )
+                vad_max_speech_frame = _c(
+                    gr.Slider(
+                        label=_("vad_max_speech_frame"),
+                        minimum=100,
+                        maximum=5000,
+                        step=50,
+                        value=2000,
+                        interactive=True,
+                        info=_("vad_max_speech_frame_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_max_speech_frame"),
+                        info=_("vad_max_speech_frame_info"),
+                    ),
+                )
+                vad_min_silence_frame = _c(
+                    gr.Slider(
+                        label=_("vad_min_silence_frame"),
+                        minimum=1,
+                        maximum=200,
+                        step=1,
+                        value=100,
+                        interactive=True,
+                        info=_("vad_min_silence_frame_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_min_silence_frame"),
+                        info=_("vad_min_silence_frame_info"),
+                    ),
+                )
+            with gr.Row():
+                vad_merge_silence_frame = _c(
+                    gr.Slider(
+                        label=_("vad_merge_silence_frame"),
+                        minimum=0,
+                        maximum=50,
+                        step=1,
+                        value=0,
+                        interactive=True,
+                        info=_("vad_merge_silence_frame_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_merge_silence_frame"),
+                        info=_("vad_merge_silence_frame_info"),
+                    ),
+                )
+                vad_extend_speech_frame = _c(
+                    gr.Slider(
+                        label=_("vad_extend_speech_frame"),
+                        minimum=0,
+                        maximum=50,
+                        step=1,
+                        value=0,
+                        interactive=True,
+                        info=_("vad_extend_speech_frame_info"),
+                    ),
+                    lambda: gr.update(
+                        label=_("vad_extend_speech_frame"),
+                        info=_("vad_extend_speech_frame_info"),
+                    ),
+                )
+
+        tab_single = _c(
+            gr.Tab(label=_("single_file_transcription")),
+            lambda: gr.update(label=_("single_file_transcription")),
+        )
+        with tab_single, gr.Column():
+            audio_inputs = _c(
+                gr.File(
+                    label=_("upload_audio&video_file"),
+                    file_count="single",
+                    file_types=["audio", "video"],
+                ),
+                lambda: gr.update(label=_("upload_audio&video_file")),
             )
 
             with gr.Row():
-                stre_btn = gr.Button(_("start_transcription"), variant="primary")
-                save_btn = gr.Button(_("save_subtitles"), variant="primary")
-            path_input_text = gr.Text(
-                label=_("save_path"),
-                interactive=True,
-                placeholder=_("save_path_placeholder"),
+                stre_btn = _c(
+                    gr.Button(_("start_transcription"), variant="primary"),
+                    lambda: gr.update(value=_("start_transcription")),
+                )
+                save_btn = _c(
+                    gr.Button(_("save_subtitles"), variant="primary"),
+                    lambda: gr.update(value=_("save_subtitles")),
+                )
+            path_input_text = _c(
+                gr.Text(
+                    label=_("save_path"),
+                    interactive=True,
+                    placeholder=_("save_path_placeholder"),
+                ),
+                lambda: gr.update(
+                    label=_("save_path"), placeholder=_("save_path_placeholder")
+                ),
             )
-            output_table = gr.Dataframe(
-                headers=[
-                    _("table_headers.no"),
-                    _("table_headers.start_time"),
-                    _("table_headers.end_time"),
-                    _("table_headers.subtitle_content"),
-                ],
-                label=_("transcription_results"),
+            output_table = _c(
+                gr.Dataframe(
+                    headers=[
+                        _("table_headers.no"),
+                        _("table_headers.start_time"),
+                        _("table_headers.end_time"),
+                        _("table_headers.subtitle_content"),
+                    ],
+                    label=_("transcription_results"),
+                ),
+                lambda: gr.update(
+                    label=_("transcription_results"),
+                    headers=[
+                        _("table_headers.no"),
+                        _("table_headers.start_time"),
+                        _("table_headers.end_time"),
+                        _("table_headers.subtitle_content"),
+                    ],
+                ),
             )
 
         model_selector.change(
@@ -749,19 +871,37 @@ def launch():
             outputs=[],
         )
 
-        with gr.Tab(label=_("multi_file_transcription")), gr.Column():
-            multi_files_upload = gr.File(
-                label=_("upload_audio&video_files"),
-                file_count="multiple",
-                file_types=["audio", "video"],
+        tab_multi = _c(
+            gr.Tab(label=_("multi_file_transcription")),
+            lambda: gr.update(label=_("multi_file_transcription")),
+        )
+        with tab_multi, gr.Column():
+            multi_files_upload = _c(
+                gr.File(
+                    label=_("upload_audio&video_files"),
+                    file_count="multiple",
+                    file_types=["audio", "video"],
+                ),
+                lambda: gr.update(label=_("upload_audio&video_files")),
             )
             with gr.Row():
-                stre_btn_multi = gr.Button(_("start_transcription"), variant="primary")
-                save_btn_multi = gr.Button(_("save_subtitles"), variant="primary")
-            path_input_text_multi = gr.Text(
-                label=_("save_path"),
-                interactive=True,
-                placeholder=_("save_path_placeholder"),
+                stre_btn_multi = _c(
+                    gr.Button(_("start_transcription"), variant="primary"),
+                    lambda: gr.update(value=_("start_transcription")),
+                )
+                save_btn_multi = _c(
+                    gr.Button(_("save_subtitles"), variant="primary"),
+                    lambda: gr.update(value=_("save_subtitles")),
+                )
+            path_input_text_multi = _c(
+                gr.Text(
+                    label=_("save_path"),
+                    interactive=True,
+                    placeholder=_("save_path_placeholder"),
+                ),
+                lambda: gr.update(
+                    label=_("save_path"), placeholder=_("save_path_placeholder")
+                ),
             )
 
         model_selector.change(
@@ -806,6 +946,13 @@ def launch():
             save_multi_srt,
             inputs=[multi_files_upload, path_input_text_multi],
             outputs=[],
+        )
+
+        # ---- Language switcher ----
+        lang_selector.change(
+            fn=switch_lang,
+            inputs=[lang_selector, model_selector],
+            outputs=_i18n_comps + [language_inputs],
         )
 
     threading.Thread(target=open_page).start()
