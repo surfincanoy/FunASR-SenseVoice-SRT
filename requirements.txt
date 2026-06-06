@@ -110,9 +110,9 @@ threadpoolctl==3.6.0
 tiktoken==0.13.0
 tokenizers==0.22.2
 tomlkit==0.13.3
-torch @ file:///mnt/D/python/torch-2.6.0+cu124-cp312-cp312-linux_x86_64.whl
+torch 
 torch-complex==0.4.4
-torchaudio @ file:///mnt/D/python/torchaudio-2.6.0+cu124-cp312-cp312-linux_x86_64.whl
+torchaudio 
 tqdm==4.67.3
 transformers==5.9.0
 triton==3.2.0
