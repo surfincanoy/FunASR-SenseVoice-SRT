@@ -3,7 +3,7 @@
 <div align=center>
 
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/FunAudioLLM/SenseVoice)
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com/FunAudioLLM/SenseVoice)
 
@@ -132,9 +132,17 @@ FireRed/
 - 🌍 翻訳を追加
 - 🔧 コードを改善
 
+## 🙏 謝辞
+
+本プロジェクトは以下のオープンソースプロジェクトに依存しています：
+
+- **[Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR)** — ASR モデルパイプライン，Apache 2.0
+
+完全なライセンステキストと著作権表示については [NOTICE.md](NOTICE.md) をご覧ください。
+
 ## 📄 ライセンス
 
-このプロジェクトは MIT ライセンスの下でオープンソース化されています。詳細は [LICENSE](LICENSE) ファイルをご覧ください。
+このプロジェクトは Apache 2.0 ライセンスの下でオープンソース化されています。詳細は [LICENSE](LICENSE) ファイルをご覧ください。
 
 ## 📸 インターフェースプレビュー
 

@@ -3,7 +3,7 @@
 <div align="center">
 
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/FunAudioLLM/SenseVoice)
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com/FunAudioLLM/SenseVoice)
 
@@ -130,9 +130,17 @@ FireRed/
 - 🌍 添加翻译
 - 🔧 改进代码
 
+## 🙏 致谢
+
+本项目依赖以下开源项目：
+
+- **[Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR)** — ASR 模型管道，Apache 2.0
+
+完整的许可文本和版权声明请参见 [NOTICE.md](NOTICE.md)。
+
 ## 📄 开源协议
 
-本项目基于 MIT 协议开源。详情请查看 [LICENSE](LICENSE)。
+本项目基于 Apache 2.0 协议开源。详情请查看 [LICENSE](LICENSE)。
 
 ## 📸 界面预览
 

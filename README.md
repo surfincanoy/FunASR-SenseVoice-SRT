@@ -3,7 +3,7 @@
 <div align="center">
 
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/FunAudioLLM/SenseVoice)
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com/FunAudioLLM/SenseVoice)
 
@@ -134,9 +134,17 @@ We welcome all kinds of contributions! Feel free to:
 - 🌍 Add translations
 - 🔧 Improve code
 
+## 🙏 Acknowledgements
+
+This project relies on the following open-source projects:
+
+- **[Fun-ASR](https://github.com/FunAudioLLM/Fun-ASR)** — ASR model pipeline, Apache 2.0
+
+See [NOTICE.md](NOTICE.md) for full license texts and copyright notices.
+
 ## 📄 License
 
-This project is open-sourced under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is open-sourced under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## 📸 Interface Preview
 
