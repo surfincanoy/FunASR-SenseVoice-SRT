@@ -1,0 +1,13 @@
+.venv
+.gradio
+/__pycache__
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.mp3
+1.txt
+FunAudioLLM
+ibm-granite
+iic
+ZhipuAI
