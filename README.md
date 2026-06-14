@@ -80,6 +80,25 @@ uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
 uv run main.py
 ```
 
+## 🌐 Multi-language Support (Gradio)
+
+The application automatically detects system language:
+
+- 🇺🇸 **English**: Automatically switches to English interface
+- 🇨🇳 **Chinese**: Automatically switches to Chinese interface
+- 🇯🇵 **Japanese**: Automatically switches to Japanese interface
+- ➕ **Easy to Extend**: Simply add a JSON file in `locales/` to support new languages
+
+### Language Options
+
+#### Force a specific language:
+
+```bash
+uv run main.py --lang=en    # English interface
+uv run main.py --lang=zh    # Chinese interface
+uv run main.py --lang=ja    # Japanese interface
+```
+
 ## 📁 Project Structure
 
 ```

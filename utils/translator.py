@@ -109,6 +109,7 @@ class SimpleTranslator:
 # Global translator instance
 translator = SimpleTranslator()
 
+
 # Global translation functions
 def _(key: str, **kwargs) -> str:
     """Global translation function shorthand"""
