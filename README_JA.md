@@ -63,7 +63,7 @@ uv pip install -r requirements.txt
 #### 🎮 NVIDIA GPU（CUDA）：
 
 ```bash
-uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126（システムにインストールされているCUDAバージョンに合わせて、適切なバージョンをインストールしてください。）
 ```
 
 #### 💻 CPUのみ：
